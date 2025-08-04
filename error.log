@@ -1,0 +1,342 @@
+Error in meeting check: 48 | 	const {stdout} = await execFile(binary, [...getArguments(options), '--open-windows-list']);
+49 | 	return parseMac(stdout);
+50 | }
+51 | 
+52 | export function openWindowsSync(options) {
+53 | 	const stdout = childProcess.execFileSync(binary, [...getArguments(options), '--open-windows-list'], {encoding: 'utf8'});
+                                  ^
+Error: 
+      path: "/Users/simeoncheeseman/Development/in-meeting-automation/node_modules/get-windows/main",
+   syscall: "spawnSync",
+     errno: -1,
+      code: 1,
+ spawnargs: [
+  "--open-windows-list"
+],
+    signal: null,
+    status: 1,
+    output: [ null, "get-windows requires the screen recording permission in “System Settings › Privacy & Security › Screen Recording”.\n",
+  ""
+],
+    stdout: "get-windows requires the screen recording permission in “System Settings › Privacy & Security › Screen Recording”.\n",
+    stderr: "",
+
+      at new SystemError (node:child_process:928:5)
+      at spawnSync (node:child_process:256:20)
+      at execFileSync (node:child_process:263:54)
+      at openWindowsSync (/Users/simeoncheeseman/Development/in-meeting-automation/node_modules/get-windows/lib/macos.js:53:30)
+      at <anonymous> (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:127:23)
+      at check (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:125:25)
+      at spawnSync (node:child_process:233:22)
+      at execFileSync (node:child_process:263:54)
+      at openWindowsSync (/Users/simeoncheeseman/Development/in-meeting-automation/node_modules/get-windows/lib/macos.js:53:30)
+
+48 | 	const {stdout} = await execFile(binary, [...getArguments(options), '--open-windows-list']);
+49 | 	return parseMac(stdout);
+50 | }
+51 | 
+52 | export function openWindowsSync(options) {
+53 | 	const stdout = childProcess.execFileSync(binary, [...getArguments(options), '--open-windows-list'], {encoding: 'utf8'});
+                                  ^
+Error: 
+      path: "/Users/simeoncheeseman/Development/in-meeting-automation/node_modules/get-windows/main",
+   syscall: "spawnSync",
+     errno: -1,
+      code: 1,
+ spawnargs: [
+  "--open-windows-list"
+],
+    signal: null,
+    status: 1,
+    output: [ null, "get-windows requires the screen recording permission in “System Settings › Privacy & Security › Screen Recording”.\n",
+  ""
+],
+    stdout: "get-windows requires the screen recording permission in “System Settings › Privacy & Security › Screen Recording”.\n",
+    stderr: "",
+     error: [Circular],
+
+      at new SystemError (node:child_process:928:5)
+      at spawnSync (node:child_process:256:20)
+      at execFileSync (node:child_process:263:54)
+      at openWindowsSync (/Users/simeoncheeseman/Development/in-meeting-automation/node_modules/get-windows/lib/macos.js:53:30)
+      at <anonymous> (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:127:23)
+      at check (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:125:25)
+      at spawnSync (node:child_process:233:22)
+      at execFileSync (node:child_process:263:54)
+      at openWindowsSync (/Users/simeoncheeseman/Development/in-meeting-automation/node_modules/get-windows/lib/macos.js:53:30)
+
+48 | 	const {stdout} = await execFile(binary, [...getArguments(options), '--open-windows-list']);
+49 | 	return parseMac(stdout);
+50 | }
+51 | 
+52 | export function openWindowsSync(options) {
+53 | 	const stdout = childProcess.execFileSync(binary, [...getArguments(options), '--open-windows-list'], {encoding: 'utf8'});
+                                  ^
+Error: 
+      path: "/Users/simeoncheeseman/Development/in-meeting-automation/node_modules/get-windows/main",
+   syscall: "spawnSync",
+     errno: -1,
+      code: 1,
+ spawnargs: [
+  "--open-windows-list"
+],
+    signal: null,
+    status: 1,
+    output: [ null, "get-windows requires the screen recording permission in “System Settings › Privacy & Security › Screen Recording”.\n",
+  ""
+],
+    stdout: "get-windows requires the screen recording permission in “System Settings › Privacy & Security › Screen Recording”.\n",
+    stderr: "",
+
+      at new SystemError (node:child_process:928:5)
+      at spawnSync (node:child_process:256:20)
+      at execFileSync (node:child_process:263:54)
+      at openWindowsSync (/Users/simeoncheeseman/Development/in-meeting-automation/node_modules/get-windows/lib/macos.js:53:30)
+      at <anonymous> (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:192:21)
+      at onGoogleMeetEnd (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:189:35)
+      at <anonymous> (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:167:20)
+      at <anonymous> (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:151:44)
+      at emit (node:events:90:22)
+      at fetch (node:http:400:24)
+
+48 | 	const {stdout} = await execFile(binary, [...getArguments(options), '--open-windows-list']);
+49 | 	return parseMac(stdout);
+50 | }
+51 | 
+52 | export function openWindowsSync(options) {
+53 | 	const stdout = childProcess.execFileSync(binary, [...getArguments(options), '--open-windows-list'], {encoding: 'utf8'});
+                                  ^
+Error: 
+      path: "/Users/simeoncheeseman/Development/in-meeting-automation/node_modules/get-windows/main",
+   syscall: "spawnSync",
+     errno: -1,
+      code: 1,
+ spawnargs: [
+  "--open-windows-list"
+],
+    signal: null,
+    status: 1,
+    output: [ null, "get-windows requires the screen recording permission in “System Settings › Privacy & Security › Screen Recording”.\n",
+  ""
+],
+    stdout: "get-windows requires the screen recording permission in “System Settings › Privacy & Security › Screen Recording”.\n",
+    stderr: "",
+     error: 48 | 	const {stdout} = await execFile(binary, [...getArguments(options), '--open-windows-list']);
+49 | 	return parseMac(stdout);
+50 | }
+51 | 
+52 | export function openWindowsSync(options) {
+53 | 	const stdout = childProcess.execFileSync(binary, [...getArguments(options), '--open-windows-list'], {encoding: 'utf8'});
+                                  ^
+Error: 
+      path: "/Users/simeoncheeseman/Development/in-meeting-automation/node_modules/get-windows/main",
+   syscall: "spawnSync",
+     errno: -1,
+      code: 1,
+ spawnargs: [
+  "--open-windows-list"
+],
+    signal: null,
+    status: 1,
+    output: [ null, "get-windows requires the screen recording permission in “System Settings › Privacy & Security › Screen Recording”.\n",
+  ""
+],
+    stdout: "get-windows requires the screen recording permission in “System Settings › Privacy & Security › Screen Recording”.\n",
+    stderr: "",
+     error: [Circular],
+
+      at new SystemError (node:child_process:928:5)
+      at spawnSync (node:child_process:256:20)
+      at execFileSync (node:child_process:263:54)
+      at openWindowsSync (/Users/simeoncheeseman/Development/in-meeting-automation/node_modules/get-windows/lib/macos.js:53:30)
+      at <anonymous> (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:192:21)
+      at onGoogleMeetEnd (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:189:35)
+      at <anonymous> (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:167:20)
+      at <anonymous> (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:151:44)
+      at emit (node:events:90:22)
+      at fetch (node:http:400:24)
+,
+
+      at new SystemError (node:child_process:928:5)
+      at spawnSync (node:child_process:256:20)
+      at execFileSync (node:child_process:263:54)
+      at openWindowsSync (/Users/simeoncheeseman/Development/in-meeting-automation/node_modules/get-windows/lib/macos.js:53:30)
+      at <anonymous> (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:192:21)
+      at onGoogleMeetEnd (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:189:35)
+      at <anonymous> (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:167:20)
+      at <anonymous> (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:151:44)
+      at emit (node:events:90:22)
+      at fetch (node:http:400:24)
+
+Bun v1.2.2 (macOS arm64)
+Error in meeting check: 48 | 	const {stdout} = await execFile(binary, [...getArguments(options), '--open-windows-list']);
+49 | 	return parseMac(stdout);
+50 | }
+51 | 
+52 | export function openWindowsSync(options) {
+53 | 	const stdout = childProcess.execFileSync(binary, [...getArguments(options), '--open-windows-list'], {encoding: 'utf8'});
+                                  ^
+Error: 
+      path: "/Users/simeoncheeseman/Development/in-meeting-automation/node_modules/get-windows/main",
+   syscall: "spawnSync",
+     errno: -1,
+      code: 1,
+ spawnargs: [
+  "--open-windows-list"
+],
+    signal: null,
+    status: 1,
+    output: [ null, "get-windows requires the screen recording permission in “System Settings › Privacy & Security › Screen Recording”.\n",
+  ""
+],
+    stdout: "get-windows requires the screen recording permission in “System Settings › Privacy & Security › Screen Recording”.\n",
+    stderr: "",
+
+      at new SystemError (node:child_process:928:5)
+      at spawnSync (node:child_process:256:20)
+      at execFileSync (node:child_process:263:54)
+      at openWindowsSync (/Users/simeoncheeseman/Development/in-meeting-automation/node_modules/get-windows/lib/macos.js:53:30)
+      at <anonymous> (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:127:23)
+      at check (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:125:25)
+      at spawnSync (node:child_process:233:22)
+      at execFileSync (node:child_process:263:54)
+      at openWindowsSync (/Users/simeoncheeseman/Development/in-meeting-automation/node_modules/get-windows/lib/macos.js:53:30)
+
+48 | 	const {stdout} = await execFile(binary, [...getArguments(options), '--open-windows-list']);
+49 | 	return parseMac(stdout);
+50 | }
+51 | 
+52 | export function openWindowsSync(options) {
+53 | 	const stdout = childProcess.execFileSync(binary, [...getArguments(options), '--open-windows-list'], {encoding: 'utf8'});
+                                  ^
+Error: 
+      path: "/Users/simeoncheeseman/Development/in-meeting-automation/node_modules/get-windows/main",
+   syscall: "spawnSync",
+     errno: -1,
+      code: 1,
+ spawnargs: [
+  "--open-windows-list"
+],
+    signal: null,
+    status: 1,
+    output: [ null, "get-windows requires the screen recording permission in “System Settings › Privacy & Security › Screen Recording”.\n",
+  ""
+],
+    stdout: "get-windows requires the screen recording permission in “System Settings › Privacy & Security › Screen Recording”.\n",
+    stderr: "",
+     error: [Circular],
+
+      at new SystemError (node:child_process:928:5)
+      at spawnSync (node:child_process:256:20)
+      at execFileSync (node:child_process:263:54)
+      at openWindowsSync (/Users/simeoncheeseman/Development/in-meeting-automation/node_modules/get-windows/lib/macos.js:53:30)
+      at <anonymous> (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:127:23)
+      at check (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:125:25)
+      at spawnSync (node:child_process:233:22)
+      at execFileSync (node:child_process:263:54)
+      at openWindowsSync (/Users/simeoncheeseman/Development/in-meeting-automation/node_modules/get-windows/lib/macos.js:53:30)
+
+48 | 	const {stdout} = await execFile(binary, [...getArguments(options), '--open-windows-list']);
+49 | 	return parseMac(stdout);
+50 | }
+51 | 
+52 | export function openWindowsSync(options) {
+53 | 	const stdout = childProcess.execFileSync(binary, [...getArguments(options), '--open-windows-list'], {encoding: 'utf8'});
+                                  ^
+Error: 
+      path: "/Users/simeoncheeseman/Development/in-meeting-automation/node_modules/get-windows/main",
+   syscall: "spawnSync",
+     errno: -1,
+      code: 1,
+ spawnargs: [
+  "--open-windows-list"
+],
+    signal: null,
+    status: 1,
+    output: [ null, "get-windows requires the screen recording permission in “System Settings › Privacy & Security › Screen Recording”.\n",
+  ""
+],
+    stdout: "get-windows requires the screen recording permission in “System Settings › Privacy & Security › Screen Recording”.\n",
+    stderr: "",
+
+      at new SystemError (node:child_process:928:5)
+      at spawnSync (node:child_process:256:20)
+      at execFileSync (node:child_process:263:54)
+      at openWindowsSync (/Users/simeoncheeseman/Development/in-meeting-automation/node_modules/get-windows/lib/macos.js:53:30)
+      at <anonymous> (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:192:21)
+      at onGoogleMeetEnd (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:189:35)
+      at <anonymous> (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:167:20)
+      at <anonymous> (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:151:44)
+      at emit (node:events:90:22)
+      at fetch (node:http:400:24)
+
+48 | 	const {stdout} = await execFile(binary, [...getArguments(options), '--open-windows-list']);
+49 | 	return parseMac(stdout);
+50 | }
+51 | 
+52 | export function openWindowsSync(options) {
+53 | 	const stdout = childProcess.execFileSync(binary, [...getArguments(options), '--open-windows-list'], {encoding: 'utf8'});
+                                  ^
+Error: 
+      path: "/Users/simeoncheeseman/Development/in-meeting-automation/node_modules/get-windows/main",
+   syscall: "spawnSync",
+     errno: -1,
+      code: 1,
+ spawnargs: [
+  "--open-windows-list"
+],
+    signal: null,
+    status: 1,
+    output: [ null, "get-windows requires the screen recording permission in “System Settings › Privacy & Security › Screen Recording”.\n",
+  ""
+],
+    stdout: "get-windows requires the screen recording permission in “System Settings › Privacy & Security › Screen Recording”.\n",
+    stderr: "",
+     error: 48 | 	const {stdout} = await execFile(binary, [...getArguments(options), '--open-windows-list']);
+49 | 	return parseMac(stdout);
+50 | }
+51 | 
+52 | export function openWindowsSync(options) {
+53 | 	const stdout = childProcess.execFileSync(binary, [...getArguments(options), '--open-windows-list'], {encoding: 'utf8'});
+                                  ^
+Error: 
+      path: "/Users/simeoncheeseman/Development/in-meeting-automation/node_modules/get-windows/main",
+   syscall: "spawnSync",
+     errno: -1,
+      code: 1,
+ spawnargs: [
+  "--open-windows-list"
+],
+    signal: null,
+    status: 1,
+    output: [ null, "get-windows requires the screen recording permission in “System Settings › Privacy & Security › Screen Recording”.\n",
+  ""
+],
+    stdout: "get-windows requires the screen recording permission in “System Settings › Privacy & Security › Screen Recording”.\n",
+    stderr: "",
+     error: [Circular],
+
+      at new SystemError (node:child_process:928:5)
+      at spawnSync (node:child_process:256:20)
+      at execFileSync (node:child_process:263:54)
+      at openWindowsSync (/Users/simeoncheeseman/Development/in-meeting-automation/node_modules/get-windows/lib/macos.js:53:30)
+      at <anonymous> (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:192:21)
+      at onGoogleMeetEnd (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:189:35)
+      at <anonymous> (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:167:20)
+      at <anonymous> (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:151:44)
+      at emit (node:events:90:22)
+      at fetch (node:http:400:24)
+,
+
+      at new SystemError (node:child_process:928:5)
+      at spawnSync (node:child_process:256:20)
+      at execFileSync (node:child_process:263:54)
+      at openWindowsSync (/Users/simeoncheeseman/Development/in-meeting-automation/node_modules/get-windows/lib/macos.js:53:30)
+      at <anonymous> (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:192:21)
+      at onGoogleMeetEnd (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:189:35)
+      at <anonymous> (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:167:20)
+      at <anonymous> (/Users/simeoncheeseman/Development/in-meeting-automation/MeetingLightController.ts:151:44)
+      at emit (node:events:90:22)
+      at fetch (node:http:400:24)
+
+Bun v1.2.2 (macOS arm64)

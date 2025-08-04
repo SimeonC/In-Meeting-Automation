@@ -1,0 +1,28 @@
+{
+  "name": "in-meeting-automation",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "setup": "bun run setup.ts",
+    "debug-lights": "bun run debug-hue-lights.ts",
+    "debug-windows": "bun run debug-windows.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@clack/prompts": "0.10.1",
+    "dotenv": "16.5.0",
+    "get-windows": "9.2.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "22.14.1",
+    "typescript": "5.8.3"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
