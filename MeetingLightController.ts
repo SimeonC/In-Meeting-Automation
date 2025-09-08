@@ -4,8 +4,7 @@ import http from "http";
 export default class MeetingLightController {
   private bridgeIp: string;
   private username: string;
-  private lightId?: string;
-  private siblingLightId?: string;
+  private lightIds: string[] = [];
   private baseUrl: string;
   private inMeeting: boolean = false;
   private googleMeetActive: boolean = false;
@@ -15,22 +14,28 @@ export default class MeetingLightController {
   private networkOnline: boolean = false;
   private networkCheckInterval?: NodeJS.Timeout;
   private networkPollIntervalMs: number = 15 * 60 * 1000; // 15 minutes in milliseconds
+  private googleMeetTimeout?: NodeJS.Timeout;
 
   constructor(pollIntervalMs: number = 2000) {
     const bridgeIp = process.env.HUE_BRIDGE_IP;
     const username = process.env.HUE_TOKEN;
-    const lightId = process.env.HUE_LIGHT_ID;
-    const siblingLightId = process.env.HUE_LIGHT_SIBLING_ID;
+    const lightIdsEnv = process.env.HUE_LIGHT_IDS;
 
     if (!bridgeIp || !username) {
-      console.error("Missing HUE_BRIDGE_IP or HUE_TOKEN in .env.local");
+      console.error("Missing HUE_BRIDGE_IP or HUE_TOKEN in .env");
       process.exit(1);
     }
 
     this.bridgeIp = bridgeIp;
     this.username = username;
-    this.lightId = lightId;
-    this.siblingLightId = siblingLightId;
+
+    if (lightIdsEnv) {
+      this.lightIds = lightIdsEnv
+        .split(",")
+        .map((id) => id.trim())
+        .filter((id) => id);
+    }
+
     this.baseUrl = `https://${this.bridgeIp}/api/${this.username}`;
     this.pollIntervalMs = pollIntervalMs;
   }
@@ -50,51 +55,60 @@ export default class MeetingLightController {
     );
   }
 
-  private async setLight(isOn: boolean) {
-    if (!this.lightId) return;
+  private async setLight(isInMeeting: boolean) {
+    if (this.lightIds.length === 0) return;
+
     try {
-      if (isOn) {
-        // Set to red with full brightness when ON
-        await fetch(`${this.baseUrl}/lights/${this.lightId}/state`, {
+      const lightPromises = this.lightIds.map((lightId) =>
+        this.setSingleLight(lightId, isInMeeting)
+      );
+      await Promise.all(lightPromises);
+    } catch (err) {
+      console.error("Error setting light states:", err);
+    }
+  }
+
+  private async setSingleLight(lightId: string, isInMeeting: boolean) {
+    try {
+      if (isInMeeting) {
+        // Set to red with full brightness when in meeting
+        await fetch(`${this.baseUrl}/lights/${lightId}/state`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ on: true, bri: 254, hue: 0, sat: 254 }),
         });
       } else {
-        // When OFF, match the sibling light
-        if (this.siblingLightId) {
-          // Get sibling light state
-          const siblingRes = await fetch(
-            `${this.baseUrl}/lights/${this.siblingLightId}`
-          );
-          const siblingData = (await siblingRes.json()) as { state: any };
-          const siblingState = siblingData.state;
-
-          if (siblingState.on) {
-            // Apply sibling state to this light
-            await fetch(`${this.baseUrl}/lights/${this.lightId}/state`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(siblingState),
-            });
-            return;
-          }
-        }
-        // If no sibling ID, or sibling is off, just turn off
-        await fetch(`${this.baseUrl}/lights/${this.lightId}/state`, {
+        // Set to cool blue when not in meeting
+        await fetch(`${this.baseUrl}/lights/${lightId}/state`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             on: true,
-            bri: 254,
-            hue: 17165,
-            sat: 38,
-            ct: 274,
+            bri: 200,
+            hue: 46920,
+            sat: 200,
           }),
         });
       }
     } catch (err) {
-      console.error("Error setting light state:", err);
+      console.error(`Error setting light ${lightId}:`, err);
+    }
+  }
+
+  private async turnOffLights() {
+    if (this.lightIds.length === 0) return;
+
+    try {
+      const lightPromises = this.lightIds.map((lightId) =>
+        fetch(`${this.baseUrl}/lights/${lightId}/state`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ on: false }),
+        })
+      );
+      await Promise.all(lightPromises);
+    } catch (err) {
+      console.error("Error turning off lights:", err);
     }
   }
 
@@ -107,7 +121,7 @@ export default class MeetingLightController {
         console.log(`${id}: ${light.name}`);
       }
       console.log(
-        "Set HUE_LIGHT_ID to the ID of the light you want to control in .env.local"
+        "Set HUE_LIGHT_IDS to a comma-separated list of light IDs you want to control in .env"
       );
     } catch (err) {
       console.error("Error listing lights:", err);
@@ -116,6 +130,12 @@ export default class MeetingLightController {
 
   public async run() {
     this.startNetworkMonitor();
+  }
+
+  public async initializeLights() {
+    if (this.lightIds.length === 0) return;
+    console.log("Initializing lights to cool blue...");
+    await this.setLight(false); // Set to cool blue (not in meeting)
   }
 
   private startPolling() {
@@ -139,7 +159,7 @@ export default class MeetingLightController {
         await this.setLight(true);
       } else if (!(inSlack || inZoom || inGoogle) && this.inMeeting) {
         this.inMeeting = false;
-        console.log("Meeting ended, turning light off");
+        console.log("Meeting ended, setting light to cool blue");
         await this.setLight(false);
       }
     } catch (err) {
@@ -165,6 +185,8 @@ export default class MeetingLightController {
         await this.onGoogleMeetStart();
       } else if (req.method === "POST" && req.url === "/meeting-end") {
         await this.onGoogleMeetEnd();
+      } else if (req.method === "POST" && req.url === "/meeting-heartbeat") {
+        await this.onGoogleMeetHeartbeat();
       }
       res.writeHead(200);
       res.end();
@@ -183,26 +205,64 @@ export default class MeetingLightController {
         "Meeting started (Google Meet extension), setting light to red"
       );
       await this.setLight(true);
+
+      if (this.googleMeetTimeout) {
+        clearTimeout(this.googleMeetTimeout);
+      }
+
+      this.googleMeetTimeout = setTimeout(() => {
+        console.log("Google Meet timeout reached, assuming meeting ended");
+        this.onGoogleMeetEnd();
+      }, 30 * 1000); // 30 seconds timeout
+    }
+  }
+
+  private async onGoogleMeetHeartbeat() {
+    if (this.googleMeetActive && this.googleMeetTimeout) {
+      // Reset the timeout when we receive a heartbeat
+      clearTimeout(this.googleMeetTimeout);
+      this.googleMeetTimeout = setTimeout(() => {
+        console.log("Google Meet timeout reached, assuming meeting ended");
+        this.onGoogleMeetEnd();
+      }, 30 * 1000); // 30 seconds timeout
+      console.debug("💓 Google Meet heartbeat received, timeout reset");
     }
   }
 
   private async onGoogleMeetEnd() {
     console.log("Google Meet end event received");
+
+    if (this.googleMeetTimeout) {
+      clearTimeout(this.googleMeetTimeout);
+      this.googleMeetTimeout = undefined;
+    }
+
     // Only turn off if not in Slack or Zoom
-    const windows = openWindowsSync();
-    const inSlack = this.detectSlackHuddle(windows);
-    const inZoom = this.detectZoomMeeting(windows);
-    if (!inSlack && !inZoom && this.inMeeting) {
-      console.log("Meeting ended (Google Meet extension), turning light off");
+    try {
+      const windows = openWindowsSync();
+      const inSlack = this.detectSlackHuddle(windows);
+      const inZoom = this.detectZoomMeeting(windows);
+      if (!inSlack && !inZoom && this.inMeeting) {
+        console.log(
+          "Meeting ended (Google Meet extension), setting light to cool blue"
+        );
+        await this.setLight(false);
+        this.inMeeting = false;
+        this.googleMeetActive = false;
+      } else if (inSlack || inZoom) {
+        console.log(
+          "Meeting ended (Google Meet extension), but in Slack or Zoom"
+        );
+      } else {
+        console.log(
+          "Meeting ended (Google Meet extension), but not in meeting"
+        );
+      }
+    } catch (err) {
+      console.error("Error in Google Meet end event:", err);
       await this.setLight(false);
-      this.inMeeting = false;
       this.googleMeetActive = false;
-    } else if (inSlack || inZoom) {
-      console.log(
-        "Meeting ended (Google Meet extension), but in Slack or Zoom"
-      );
-    } else {
-      console.log("Meeting ended (Google Meet extension), but not in meeting");
+      this.inMeeting = false;
     }
   }
 
@@ -214,6 +274,9 @@ export default class MeetingLightController {
     }
     if (this.networkCheckInterval) {
       clearInterval(this.networkCheckInterval);
+    }
+    if (this.googleMeetTimeout) {
+      clearTimeout(this.googleMeetTimeout);
     }
 
     await Promise.all([
@@ -227,9 +290,9 @@ export default class MeetingLightController {
           resolve();
         }
       }),
-      this.setLight(false),
+      this.turnOffLights(),
     ]);
-    console.log("Cleanup complete, light reset");
+    console.log("Cleanup complete, lights turned off");
   }
 
   private startNetworkMonitor(): void {
@@ -239,10 +302,11 @@ export default class MeetingLightController {
         this.networkOnline = true;
         console.log("Hue bridge reachable, starting controller");
         this.startServer();
-        if (!this.lightId) {
+        if (this.lightIds.length === 0) {
           await this.listLights();
           process.exit(0);
         }
+        await this.initializeLights();
         this.startPolling();
       } else if (!available && this.networkOnline) {
         this.networkOnline = false;

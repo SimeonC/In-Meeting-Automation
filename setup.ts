@@ -1,7 +1,14 @@
 import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
-import { intro, text, select, confirm, outro, isCancel } from "@clack/prompts";
+import {
+  intro,
+  text,
+  multiselect,
+  confirm,
+  outro,
+  isCancel,
+} from "@clack/prompts";
 import os from "os";
 import { execSync } from "child_process";
 
@@ -35,8 +42,7 @@ async function main() {
   // Initialize or load saved values
   let bridgeIp: string = process.env.HUE_BRIDGE_IP ?? "";
   let username: string = process.env.HUE_TOKEN ?? "";
-  let mainLight: string = process.env.HUE_LIGHT_ID ?? "";
-  let siblingLight: string = process.env.HUE_LIGHT_SIBLING_ID ?? "";
+  let lightIds: string = process.env.HUE_LIGHT_IDS ?? "";
   // Options for lighting selection
   let lightOptions: LightOption[] = [];
 
@@ -45,8 +51,7 @@ async function main() {
     const lines = [
       bridgeIp ? `HUE_BRIDGE_IP=${bridgeIp}` : undefined,
       username ? `HUE_TOKEN=${username}` : undefined,
-      mainLight ? `HUE_LIGHT_ID=${mainLight}` : undefined,
-      siblingLight ? `HUE_LIGHT_SIBLING_ID=${siblingLight}` : undefined,
+      lightIds ? `HUE_LIGHT_IDS=${lightIds}` : undefined,
       "NODE_TLS_REJECT_UNAUTHORIZED=0",
     ].filter(Boolean) as string[];
     fs.writeFileSync(
@@ -119,35 +124,21 @@ async function main() {
     label: `${id}: ${l.name}`,
     value: id,
   }));
-  if (!mainLight) {
-    mainLight = String(
-      await ask(() =>
-        select({ message: "Select your main light", options: lightOptions })
-      )
+
+  // Step 4: Select lights to control
+  if (!lightIds) {
+    const selectedLights = await ask(() =>
+      multiselect({
+        message: "Select the lights you want to control:",
+        options: lightOptions,
+        required: true,
+      })
     );
+
+    lightIds = selectedLights.join(",");
     writeEnv();
   } else {
-    console.log(`Using existing main light ID: ${mainLight}`);
-  }
-
-  // Step 4: Optional sibling light
-  if (!siblingLight) {
-    const hasSibling = await ask(() =>
-      confirm({ message: "Would you like to set a sibling light?" })
-    );
-    if (hasSibling) {
-      const sibOptions: LightOption[] = lightOptions.filter(
-        (o: LightOption) => o.value !== mainLight
-      );
-      siblingLight = String(
-        await ask(() =>
-          select({ message: "Select your sibling light", options: sibOptions })
-        )
-      );
-      writeEnv();
-    }
-  } else {
-    console.log(`Using existing sibling light ID: ${siblingLight}`);
+    console.log(`Using existing light IDs: ${lightIds}`);
   }
 
   // Final confirmation
@@ -165,7 +156,8 @@ async function main() {
     <string>${label}</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/simeoncheeseman/.asdf/shims/bun</string>
+        <string>/Users/simeoncheeseman/.asdf/installs/bun/1.2.2/bin/bun</string>
+        <string>run</string>
         <string>${cwd}/index.ts</string>
     </array>
     <key>KeepAlive</key>

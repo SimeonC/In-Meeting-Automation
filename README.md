@@ -1,6 +1,6 @@
 # In-Meeting Automation
 
-Automatically turns your Philips Hue light red when you join a meeting (Slack, Zoom, Google Meet) and restores the light state when your meeting ends.
+Automatically controls your Philips Hue lights when you join/leave meetings (Slack, Zoom, Google Meet). Lights turn red during meetings and cool blue when not in meetings.
 
 ---
 
@@ -30,8 +30,7 @@ Run the interactive setup to:
 
 - Enter your Hue Bridge IP address
 - Register a new Hue API token (press the bridge button when prompted)
-- Select the main Hue light to control
-- (Optionally) select a sibling light to match its state when off
+- Select multiple Hue lights to control
 - Generate a `LaunchAgent` plist (macOS) and optionally load it via `launchctl`
 
 ```bash
@@ -43,8 +42,7 @@ This will create or update a `.env` file in the project root with:
 ```dotenv
 HUE_BRIDGE_IP=<your-bridge-ip>
 HUE_TOKEN=<your-username-token>
-HUE_LIGHT_ID=<main-light-id>
-HUE_LIGHT_SIBLING_ID=<optional-sibling-light-id>
+HUE_LIGHT_IDS=<comma-separated-light-ids>
 NODE_TLS_REJECT_UNAUTHORIZED=0
 ```
 
@@ -61,9 +59,13 @@ bun run index.ts
 The service will:
 
 - Clear `error.log` and `output.log` on startup
+- Initialize all selected lights to cool blue on startup
 - Listen for Slack huddles and Zoom meetings via window polling
 - Listen for Google Meet start/end events on `http://localhost:1234` from the browser extension
-- Turn your Hue light red when a meeting starts, and restore it when it ends
+- Turn all selected lights red when a meeting starts
+- Turn all selected lights to cool blue when a meeting ends
+- Turn off all lights when the service shuts down
+- Handle browser tab closures with a 5-minute timeout for Google Meet
 
 ## Browser Extension (Google Meet Support)
 
