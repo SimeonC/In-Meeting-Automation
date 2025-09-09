@@ -15,6 +15,7 @@ export default class MeetingLightController {
   private networkCheckInterval?: NodeJS.Timeout;
   private networkPollIntervalMs: number = 15 * 60 * 1000; // 15 minutes in milliseconds
   private googleMeetTimeout?: NodeJS.Timeout;
+  private screenRecordingErrorLogged: boolean = false;
 
   constructor(pollIntervalMs: number = 2000) {
     const bridgeIp = process.env.HUE_BRIDGE_IP;
@@ -144,9 +145,7 @@ export default class MeetingLightController {
 
   private async check() {
     try {
-      const windows = openWindowsSync();
-      const inSlack = this.detectSlackHuddle(windows);
-      const inZoom = this.detectZoomMeeting(windows);
+      const { inSlack, inZoom } = this.getStatusFromWindows();
       const inGoogle = this.googleMeetActive;
       if ((inSlack || inZoom || inGoogle) && !this.inMeeting) {
         this.inMeeting = true;
@@ -229,6 +228,39 @@ export default class MeetingLightController {
     }
   }
 
+  private getStatusFromWindows(): {
+    inSlack: boolean;
+    inZoom: boolean;
+  } {
+    try {
+      const windows = openWindowsSync();
+      const inSlack = this.detectSlackHuddle(windows);
+      const inZoom = this.detectZoomMeeting(windows);
+      return { inSlack, inZoom };
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        err.message.includes("screen recording permission")
+      ) {
+        // Only log this error once to avoid spam
+        if (!this.screenRecordingErrorLogged) {
+          console.warn("⚠️  Screen recording permission not available.");
+          console.warn("   To enable Slack and Zoom detection:");
+          console.warn(
+            "   1. Open System Settings > Privacy & Security > Screen & System Audio Recording"
+          );
+          console.warn("   2. Add 'Bun' to the list of allowed applications");
+          console.warn("   3. Restart this service");
+          console.warn("   Currently only Google Meet detection is working.");
+          this.screenRecordingErrorLogged = true;
+        }
+      } else {
+        console.error("Error getting status from windows:", err);
+      }
+      return { inSlack: false, inZoom: false };
+    }
+  }
+
   private async onGoogleMeetEnd() {
     console.log("Google Meet end event received");
 
@@ -239,9 +271,7 @@ export default class MeetingLightController {
 
     // Only turn off if not in Slack or Zoom
     try {
-      const windows = openWindowsSync();
-      const inSlack = this.detectSlackHuddle(windows);
-      const inZoom = this.detectZoomMeeting(windows);
+      const { inSlack, inZoom } = this.getStatusFromWindows();
       if (!inSlack && !inZoom && this.inMeeting) {
         console.log(
           "Meeting ended (Google Meet extension), setting light to cool blue"

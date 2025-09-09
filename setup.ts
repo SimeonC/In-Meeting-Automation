@@ -143,6 +143,18 @@ async function main() {
 
   // Final confirmation
   outro("✅ Setup complete! .env file created/updated.");
+  console.log(
+    "\n🎯 Meeting Light Controller is now configured as a user agent."
+  );
+  console.log(
+    "   This is safer than a system service and can request permissions directly."
+  );
+  console.log(
+    "   Google Meet detection will work immediately via browser extension."
+  );
+  console.log(
+    "   Slack and Zoom detection requires screen recording permissions for 'Bun'."
+  );
 
   // Final step: create LaunchAgent plist in the current directory
   const user = os.userInfo().username;
@@ -177,12 +189,30 @@ async function main() {
         <key>HOME</key>
         <string>${os.homedir()}</string>
     </dict>
+    <key>ProcessType</key>
+    <string>Interactive</string>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+    <key>LimitLoadToSessionType</key>
+    <string>Aqua</string>
 </dict>
 </plist>`;
   // Write plist to current directory
   const plistPath = path.resolve(cwd, `${label}.plist`);
   fs.writeFileSync(plistPath, plistContent);
-  console.log(`Created plist at ${plistPath}`);
+  console.log(`Created user agent plist at ${plistPath}`);
+
+  // Explain the user agent setup
+  console.log("\n📋 User Agent Setup Information:");
+  console.log("   This will run as a user agent (safer than system service)");
+  console.log("   It can request permissions directly from the user");
+  console.log(
+    "   For full functionality, you'll need to grant screen recording permissions to 'Bun'"
+  );
+  console.log(
+    "   The service will work with Google Meet detection even without permissions"
+  );
+
   // Prompt to load into launchctl
   const shouldLoad = await ask(() =>
     confirm({
@@ -207,6 +237,17 @@ async function main() {
       cwd: launchAgentsDir,
     });
     console.log("✅ Loaded plist into launchctl");
+    console.log("\n🔐 Next Steps for Full Functionality:");
+    console.log(
+      "   1. Open System Settings > Privacy & Security > Screen & System Audio Recording"
+    );
+    console.log("   2. Add 'Bun' to the list of allowed applications");
+    console.log(
+      "   3. The service will automatically detect the permission change"
+    );
+    console.log(
+      "   4. Check the logs to see if Slack and Zoom detection is working"
+    );
   } else {
     console.log(`You can load it later with: launchctl load "${plistPath}"`);
   }

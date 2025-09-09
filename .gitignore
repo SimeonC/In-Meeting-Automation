@@ -175,3 +175,6 @@ dist
 
 # Finder (MacOS) folder config
 .DS_Store
+/error.log
+/errors-previous.log
+/output.log

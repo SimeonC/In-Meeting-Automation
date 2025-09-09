@@ -35,12 +35,25 @@ process.on("uncaughtException", async (error) => {
 
 // Start the application
 (async () => {
-  // Clear logs at startup
+  // Backup and clear logs at startup
   try {
-    await Promise.all([fs.writeFile("output.log", "")]);
+    // Backup existing error.log to errors-previous.log if it exists
+    try {
+      await fs.access("error.log");
+      await fs.copyFile("error.log", "errors-previous.log");
+      console.log("Backed up error.log to errors-previous.log");
+    } catch (err) {
+      // error.log doesn't exist, which is fine
+    }
+
+    // Clear both log files
+    await Promise.all([
+      fs.writeFile("error.log", ""),
+      fs.writeFile("output.log", ""),
+    ]);
     console.log("Cleared error.log and output.log");
   } catch (err) {
-    console.error("Failed to clear log files:", err);
+    console.error("Failed to backup/clear log files:", err);
   }
 
   controller = new MeetingLightController();
