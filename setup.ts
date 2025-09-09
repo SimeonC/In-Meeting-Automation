@@ -17,6 +17,44 @@ const ENV_FILE = ".env";
 // Load existing .env if present
 dotenv.config({ path: path.resolve(process.cwd(), ENV_FILE) });
 
+// Helper functions to detect system paths dynamically
+function detectBunPath(): string {
+  try {
+    const bunPath = execSync("which bun", { encoding: "utf8" }).trim();
+    if (bunPath) {
+      return bunPath;
+    }
+  } catch (error) {
+    // which command failed, try alternative
+  }
+
+  try {
+    const bunPath = execSync("command -v bun", { encoding: "utf8" }).trim();
+    if (bunPath) {
+      return bunPath;
+    }
+  } catch (error) {
+    // command -v failed
+  }
+
+  throw new Error(
+    "Could not detect Bun installation. Please ensure Bun is installed and in your PATH."
+  );
+}
+
+function detectLaunchAgentsDir(): string {
+  const homeDir = os.homedir();
+  return path.join(homeDir, "Library", "LaunchAgents");
+}
+
+function detectUsername(): string {
+  return os.userInfo().username;
+}
+
+function detectHomeDir(): string {
+  return os.homedir();
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -60,86 +98,132 @@ async function main() {
     );
   }
 
-  // Step 1: Bridge IP
-  if (!bridgeIp) {
-    console.log("Step 1: Enter your Philips Hue Bridge IP address");
-    bridgeIp = String(
-      await ask(() =>
-        text({ message: "Bridge IP", placeholder: "192.168.x.x" })
-      )
-    );
-    writeEnv();
-  } else {
-    console.log(`Using existing Bridge IP: ${bridgeIp}`);
-  }
+  async function checkCurrentValue<T>({
+    currentValue,
+    message,
+    getNewValue,
+    displayValue,
+  }: {
+    currentValue: T;
+    message: string;
+    getNewValue: () => Promise<T>;
+    displayValue?: (value: T) => string;
+  }): Promise<T> {
+    if (currentValue) {
+      const displayText = displayValue
+        ? displayValue(currentValue)
+        : String(currentValue);
+      const useExisting = await ask(() =>
+        confirm({
+          message: `${message}: ${displayText}`,
+          initialValue: true,
+        })
+      );
 
-  // Step 2: Hue user token
-  if (!username) {
-    console.log("\nStep 2: Create a new user token");
-    console.log("→ Press the link button on your Hue Bridge when prompted.");
-    console.log("→ Waiting 30 seconds before first attempt...");
-    await sleep(30000);
-    while (true) {
-      console.log("Attempting to register a new user...");
-      try {
-        const response = await fetch(`http://${bridgeIp}/api`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ devicetype: "in-meeting-automation#setup" }),
-        });
-        const data = (await response.json()) as {
-          success: { username: string };
-          error?: { type: number };
-        }[];
-        if (Array.isArray(data) && data[0].error) {
-          if (data[0].error.type === 101) {
-            console.log(
-              "> Link button not pressed yet. Retrying in 5 seconds..."
-            );
-            await sleep(5000);
-            continue;
-          } else {
-            console.error("Unexpected error:", data[0].error);
-            process.exit(1);
-          }
-        }
-        username = data[0].success.username;
-        console.log("✅ Received token:", username);
-        writeEnv();
-        break;
-      } catch (err: any) {
-        console.error("Network or parsing error:", err.message || err);
-        process.exit(1);
+      if (useExisting) {
+        console.log(`Using existing value: ${displayText}`);
+        return currentValue;
       }
     }
-  } else {
-    console.log(`Using existing Hue user token: ${username}`);
+    const newValue = await getNewValue();
+    writeEnv();
+    return newValue;
   }
+
+  // Step 1: Bridge IP
+  console.log("Step 1: Philips Hue Bridge IP address");
+  bridgeIp = await checkCurrentValue({
+    currentValue: bridgeIp,
+    message: "Use existing Bridge IP",
+    getNewValue: async () =>
+      String(
+        await ask(() =>
+          text({ message: "Enter Bridge IP", placeholder: "192.168.x.x" })
+        )
+      ),
+  });
+
+  // Step 2: Hue user token
+  console.log("\nStep 2: Hue user token");
+  username = await checkCurrentValue({
+    currentValue: username,
+    message: "Use existing Hue user token",
+    displayValue: () => "********",
+    getNewValue: async () => {
+      console.log("→ Press the link button on your Hue Bridge when prompted.");
+      console.log("→ Waiting 30 seconds before first attempt...");
+      await sleep(30000);
+      while (true) {
+        console.log("Attempting to register a new user...");
+        try {
+          const response = await fetch(`http://${bridgeIp}/api`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ devicetype: "in-meeting-automation#setup" }),
+          });
+          const data = (await response.json()) as {
+            success: { username: string };
+            error?: { type: number };
+          }[];
+          if (Array.isArray(data) && data[0].error) {
+            if (data[0].error.type === 101) {
+              console.log(
+                "> Link button not pressed yet. Retrying in 5 seconds..."
+              );
+              await sleep(5000);
+              continue;
+            } else {
+              console.error("Unexpected error:", data[0].error);
+              process.exit(1);
+            }
+          }
+          const newToken = data[0].success.username;
+          console.log("✅ Received token:", newToken);
+          return newToken;
+        } catch (err: any) {
+          console.error("Network or parsing error:", err.message || err);
+          process.exit(1);
+        }
+      }
+    },
+  });
 
   // Step 3: Fetch available lights
   console.log("\nStep 3: Fetching lights from bridge...");
   const lightsRes = await fetch(`http://${bridgeIp}/api/${username}/lights`);
   const lights = (await lightsRes.json()) as Record<string, { name: string }>;
   lightOptions = Object.entries(lights).map<LightOption>(([id, l]) => ({
-    label: `${id}: ${l.name}`,
+    label: l.name,
     value: id,
   }));
 
   // Step 4: Select lights to control
-  if (!lightIds) {
-    const selectedLights = await ask(() =>
-      multiselect({
-        message: "Select the lights you want to control:",
-        options: lightOptions,
-        required: true,
-      })
-    );
+  console.log("\nStep 4: Select lights to control");
+  lightIds = await checkCurrentValue({
+    currentValue: lightIds,
+    message: "Use previous lights selection",
+    displayValue: (ids) => {
+      const selectedIds = ids.split(",");
+      const lightNames = selectedIds
+        .map((id) => {
+          const option = lightOptions.find((opt) => opt.value === id);
+          return option ? option.label : id;
+        })
+        .join(", ");
+      return lightNames;
+    },
+    getNewValue: async () => {
+      const selectedLights = await ask(() =>
+        multiselect({
+          message: "Select the lights you want to control:",
+          options: lightOptions,
+          required: true,
+        })
+      );
 
-    lightIds = selectedLights.join(",");
-    writeEnv();
-  } else {
-    console.log(`Using existing light IDs: ${lightIds}`);
-  }
+      return selectedLights.join(",");
+    },
+  });
 
   // Final confirmation
   outro("✅ Setup complete! .env file created/updated.");
@@ -157,9 +241,12 @@ async function main() {
   );
 
   // Final step: create LaunchAgent plist in the current directory
-  const user = os.userInfo().username;
+  const user = detectUsername();
   const label = `com.${user}.meeting-light`;
   const cwd = process.cwd();
+  const bunPath = detectBunPath();
+  const homeDir = detectHomeDir();
+
   const plistContent = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -168,7 +255,7 @@ async function main() {
     <string>${label}</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/simeoncheeseman/.asdf/installs/bun/1.2.2/bin/bun</string>
+        <string>${bunPath}</string>
         <string>run</string>
         <string>${cwd}/index.ts</string>
     </array>
@@ -187,7 +274,7 @@ async function main() {
         <key>PATH</key>
         <string>${process.env.PATH}</string>
         <key>HOME</key>
-        <string>${os.homedir()}</string>
+        <string>${homeDir}</string>
     </dict>
     <key>ProcessType</key>
     <string>Interactive</string>
@@ -220,7 +307,7 @@ async function main() {
     })
   );
 
-  const launchAgentsDir = path.join(os.homedir(), "Library/LaunchAgents");
+  const launchAgentsDir = detectLaunchAgentsDir();
   const targetPath = path.join(launchAgentsDir, `${label}.plist`);
 
   // Check if directory exists and is writable
