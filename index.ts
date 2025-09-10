@@ -33,24 +33,21 @@ process.on("uncaughtException", async (error) => {
   await handleShutdown();
 });
 
+async function backupLogFile(fileName: "error" | "output") {
+  const fileNameOnDisk = `${fileName}.log`;
+  try {
+    await fs.access(fileNameOnDisk);
+    await fs.copyFile(fileNameOnDisk, `${fileName}-previous.log`);
+    console.log(`Backed up ${fileNameOnDisk} to ${fileName}-previous.log`);
+  } catch (err) {}
+  await fs.writeFile(fileNameOnDisk, "");
+}
+
 // Start the application
 (async () => {
   // Backup and clear logs at startup
   try {
-    // Backup existing error.log to errors-previous.log if it exists
-    try {
-      await fs.access("error.log");
-      await fs.copyFile("error.log", "errors-previous.log");
-      console.log("Backed up error.log to errors-previous.log");
-    } catch (err) {
-      // error.log doesn't exist, which is fine
-    }
-
-    // Clear both log files
-    await Promise.all([
-      fs.writeFile("error.log", ""),
-      fs.writeFile("output.log", ""),
-    ]);
+    await Promise.all([backupLogFile("error"), backupLogFile("output")]);
     console.log("Cleared error.log and output.log");
   } catch (err) {
     console.error("Failed to backup/clear log files:", err);

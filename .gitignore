@@ -178,3 +178,5 @@ dist
 /error.log
 /errors-previous.log
 /output.log
+/error-previous.log
+/output-previous.log
