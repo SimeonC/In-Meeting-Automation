@@ -255,31 +255,18 @@ async function main() {
     <string>${label}</string>
     <key>ProgramArguments</key>
     <array>
-        <string>${bunPath}</string>
-        <string>run</string>
-        <string>${cwd}/index.ts</string>
+        <string>osascript</string>
+        <string>-e</string>
+        <string>tell application "Terminal" to do script "cd '${cwd}' &amp;&amp; export PATH='${homeDir}/.local/share/mise/shims:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin' &amp;&amp; export HOME='${homeDir}' &amp;&amp; ${bunPath} run index.ts"</string>
     </array>
     <key>KeepAlive</key>
-    <true/>
+    <false/>
     <key>RunAtLoad</key>
     <true/>
     <key>WorkingDirectory</key>
     <string>${cwd}</string>
-    <key>StandardErrorPath</key>
-    <string>${cwd}/error.log</string>
-    <key>StandardOutPath</key>
-    <string>${cwd}/output.log</string>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>PATH</key>
-        <string>${process.env.PATH}</string>
-        <key>HOME</key>
-        <string>${homeDir}</string>
-    </dict>
     <key>ProcessType</key>
     <string>Interactive</string>
-    <key>ThrottleInterval</key>
-    <integer>10</integer>
     <key>LimitLoadToSessionType</key>
     <string>Aqua</string>
 </dict>
@@ -309,6 +296,7 @@ async function main() {
 
   const launchAgentsDir = detectLaunchAgentsDir();
   const targetPath = path.join(launchAgentsDir, `${label}.plist`);
+  const domainTarget = `gui/$(id -u)`;
 
   // Check if directory exists and is writable
   if (!fs.existsSync(launchAgentsDir)) {
@@ -319,24 +307,44 @@ async function main() {
   }
 
   if (shouldLoad) {
-    execSync(`launchctl load -w "${plistPath}"`, {
-      stdio: "inherit",
-      cwd: launchAgentsDir,
-    });
-    console.log("✅ Loaded plist into launchctl");
-    console.log("\n🔐 Next Steps for Full Functionality:");
-    console.log(
-      "   1. Open System Settings > Privacy & Security > Screen & System Audio Recording"
-    );
-    console.log("   2. Add 'Bun' to the list of allowed applications");
-    console.log(
-      "   3. The service will automatically detect the permission change"
-    );
-    console.log(
-      "   4. Check the logs to see if Slack and Zoom detection is working"
-    );
+    try {
+      fs.unlinkSync(targetPath);
+      fs.copyFileSync(plistPath, targetPath);
+      execSync(`chmod 644 "${targetPath}"`, { stdio: "inherit" });
+
+      try {
+        execSync(`launchctl bootout ${domainTarget}/${label}`, {
+          stdio: "ignore",
+        });
+      } catch {}
+
+      execSync(`plutil -lint "${targetPath}"`, { stdio: "inherit" });
+
+      execSync(`launchctl bootstrap ${domainTarget} "${targetPath}"`, {
+        stdio: "inherit",
+      });
+      console.log("✅ Loaded plist into launchctl");
+      console.log("\n🔐 Next Steps for Full Functionality:");
+      console.log(
+        "   1. Open System Settings > Privacy & Security > Screen & System Audio Recording"
+      );
+      console.log("   2. Add 'Bun' to the list of allowed applications");
+      console.log(
+        "   3. The service will automatically detect the permission change"
+      );
+      console.log(
+        "   4. Check the logs to see if Slack and Zoom detection is working"
+      );
+    } catch (error: any) {
+      console.error("❌ Failed to load plist:", error.message);
+      console.log(`\nYou can try manually with:`);
+      console.log(`  launchctl bootstrap ${domainTarget} "${targetPath}"`);
+      console.log(`\nOr use the legacy command:`);
+      console.log(`  launchctl load "${targetPath}"`);
+    }
   } else {
-    console.log(`You can load it later with: launchctl load "${plistPath}"`);
+    console.log(`You can load it later with:`);
+    console.log(`  launchctl bootstrap ${domainTarget} "${targetPath}"`);
   }
 
   // Ask if should launch on login
@@ -346,19 +354,21 @@ async function main() {
     })
   );
 
-  if (shouldLaunchOnLogin) {
+  if (shouldLaunchOnLogin && !shouldLoad) {
     try {
-      // Copy the file with sudo
-      execSync(`cp "${plistPath}" "${launchAgentsDir}"`, { stdio: "inherit" });
+      fs.copyFileSync(plistPath, targetPath);
       execSync(`chmod 644 "${targetPath}"`, { stdio: "inherit" });
 
       console.log(
         `✅ Copied plist to ${targetPath} for automatic startup on login`
       );
+      const domainTarget = `gui/$(id -u)`;
+      console.log(`\nTo load it, run:`);
+      console.log(`  launchctl bootstrap ${domainTarget} "${targetPath}"`);
     } catch (error) {
       console.error("Error setting up launch on login:", error);
       console.log(
-        "You can manually copy the plist file to /Library/LaunchAgents with sudo privileges."
+        "You can manually copy the plist file to ~/Library/LaunchAgents and load it."
       );
     }
   }

@@ -18,7 +18,9 @@ async function handleShutdown() {
   console.log("Received shutdown signal");
   if (controller) {
     try {
-      await controller.shutdown();
+      const lightsOffPromise = controller.turnOffLights();
+      const shutdownPromise = controller.shutdown();
+      await Promise.all([lightsOffPromise, shutdownPromise]);
       console.log("Graceful shutdown completed");
     } catch (error) {
       console.error("Error during shutdown:", error);

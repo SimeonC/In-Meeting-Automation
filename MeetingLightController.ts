@@ -96,21 +96,29 @@ export default class MeetingLightController {
     }
   }
 
-  private async turnOffLights() {
-    if (this.lightIds.length === 0) return;
+  public turnOffLights(): Promise<unknown[]> {
+    if (this.lightIds.length === 0) return Promise.resolve([]);
 
-    try {
-      const lightPromises = this.lightIds.map((lightId) =>
+    const lightPromises = [];
+    for (const lightId of this.lightIds) {
+      lightPromises.push(
         fetch(`${this.baseUrl}/lights/${lightId}/state`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ on: false }),
+          body: JSON.stringify({ on: false, bri: 0 }),
         })
       );
-      await Promise.all(lightPromises);
-    } catch (err) {
-      console.error("Error turning off lights:", err);
     }
+    return Promise.all(lightPromises).then(
+      (r) => {
+        console.log("Lights turned off");
+        return r;
+      },
+      (err) => {
+        console.error("Error turning off lights:", err);
+        return [];
+      }
+    );
   }
 
   private async listLights() {
@@ -296,7 +304,7 @@ export default class MeetingLightController {
     }
   }
 
-  public async shutdown(): Promise<void> {
+  public shutdown(): Promise<void> {
     console.log("Shutting down server and cleaning up...");
 
     if (this.pollingInterval) {
@@ -309,20 +317,17 @@ export default class MeetingLightController {
       clearTimeout(this.googleMeetTimeout);
     }
 
-    await Promise.all([
-      new Promise<void>((resolve) => {
-        if (this.server) {
-          this.server.close(() => {
-            console.log("Server closed successfully");
-            resolve();
-          });
-        } else {
+    return new Promise<void>((resolve) => {
+      if (this.server) {
+        this.server.close(() => {
+          console.log("Server closed successfully");
           resolve();
-        }
-      }),
-      this.turnOffLights(),
-    ]);
-    console.log("Cleanup complete, lights turned off");
+        });
+      } else {
+        resolve();
+        console.log("No server to close");
+      }
+    });
   }
 
   private startNetworkMonitor(): void {
