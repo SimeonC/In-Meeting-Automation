@@ -1,15 +1,24 @@
 import { openWindowsSync } from "get-windows";
-import http from "http";
+import https from "https";
+import { readFileSync, existsSync } from "fs";
+import { join } from "path";
 
 export default class MeetingLightController {
   private bridgeIp: string;
   private username: string;
-  private lightIds: string[] = [];
+  private scenes: {
+    not_meeting: string;
+    meeting: string;
+  } = {
+    not_meeting: "",
+    meeting: "",
+  };
+  private offZoneId: string = "";
   private baseUrl: string;
   private inMeeting: boolean = false;
   private googleMeetActive: boolean = false;
   private pollIntervalMs: number;
-  private server?: http.Server;
+  private server?: https.Server;
   private pollingInterval?: NodeJS.Timeout;
   private networkOnline: boolean = false;
   private networkCheckInterval?: NodeJS.Timeout;
@@ -20,7 +29,9 @@ export default class MeetingLightController {
   constructor(pollIntervalMs: number = 2000) {
     const bridgeIp = process.env.HUE_BRIDGE_IP;
     const username = process.env.HUE_TOKEN;
-    const lightIdsEnv = process.env.HUE_LIGHT_IDS;
+    const sceneOffEnv = process.env.HUE_OFF_ZONE;
+    const sceneNotMeetingEnv = process.env.HUE_SCENE_NOT_MEETING;
+    const sceneMeetingEnv = process.env.HUE_SCENE_MEETING;
 
     if (!bridgeIp || !username) {
       console.error("Missing HUE_BRIDGE_IP or HUE_TOKEN in .env");
@@ -30,11 +41,14 @@ export default class MeetingLightController {
     this.bridgeIp = bridgeIp;
     this.username = username;
 
-    if (lightIdsEnv) {
-      this.lightIds = lightIdsEnv
-        .split(",")
-        .map((id) => id.trim())
-        .filter((id) => id);
+    if (sceneOffEnv) {
+      this.offZoneId = sceneOffEnv.trim();
+    }
+    if (sceneNotMeetingEnv) {
+      this.scenes.not_meeting = sceneNotMeetingEnv.trim();
+    }
+    if (sceneMeetingEnv) {
+      this.scenes.meeting = sceneMeetingEnv.trim();
     }
 
     this.baseUrl = `https://${this.bridgeIp}/api/${this.username}`;
@@ -57,83 +71,102 @@ export default class MeetingLightController {
   }
 
   private async setLight(isInMeeting: boolean) {
-    if (this.lightIds.length === 0) return;
+    const sceneId = isInMeeting ? this.scenes.meeting : this.scenes.not_meeting;
+    if (!sceneId) return;
 
     try {
-      const lightPromises = this.lightIds.map((lightId) =>
-        this.setSingleLight(lightId, isInMeeting)
-      );
-      await Promise.all(lightPromises);
+      await this.activateScene(sceneId);
     } catch (err) {
-      console.error("Error setting light states:", err);
+      console.error("Error activating scene:", err);
     }
   }
 
-  private async setSingleLight(lightId: string, isInMeeting: boolean) {
+  private async activateScene(sceneId: string) {
     try {
-      if (isInMeeting) {
-        // Set to red with full brightness when in meeting
-        await fetch(`${this.baseUrl}/lights/${lightId}/state`, {
+      const sceneRes = await fetch(`${this.baseUrl}/scenes/${sceneId}`);
+      if (!sceneRes.ok) {
+        throw new Error(`Failed to fetch scene details: ${sceneRes.statusText}`);
+      }
+      const scene = (await sceneRes.json()) as { group?: string; name?: string };
+      const groupId = scene.group;
+
+      if (!groupId) {
+        throw new Error(`Scene ${sceneId} does not have an associated group`);
+      }
+
+      const response = await fetch(`${this.baseUrl}/groups/${groupId}/action`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scene: sceneId }),
+      });
+
+      const responseData = await response.json().catch(() => ({}));
+
+      if (Array.isArray(responseData) && responseData.some((item: any) => item.error)) {
+        const errors = responseData.filter((item: any) => item.error);
+        throw new Error(`Failed to activate scene: ${JSON.stringify(errors)}`);
+      }
+
+      if (!response.ok) {
+        throw new Error(`Failed to activate scene: ${JSON.stringify(responseData)}`);
+      }
+
+      console.log(`Scene ${sceneId} activated on group ${groupId}`);
+    } catch (err) {
+      console.error(`Error activating scene ${sceneId}:`, err);
+      throw err;
+    }
+  }
+
+  private async turnOffZone(zoneId: string): Promise<void> {
+    try {
+      const response = await fetch(
+        `${this.baseUrl}/groups/${zoneId}/action`,
+        {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ on: true, bri: 254, hue: 0, sat: 254 }),
-        });
-      } else {
-        // Set to cool blue when not in meeting
-        await fetch(`${this.baseUrl}/lights/${lightId}/state`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            on: true,
-            bri: 200,
-            hue: 46920,
-            sat: 200,
-          }),
-        });
+          body: JSON.stringify({ on: false }),
+        }
+      );
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          `Failed to turn off zone: ${JSON.stringify(errorData)}`
+        );
       }
     } catch (err) {
-      console.error(`Error setting light ${lightId}:`, err);
+      console.error(`Error turning off zone ${zoneId}:`, err);
+      throw err;
     }
   }
 
   public turnOffLights(): Promise<unknown[]> {
-    if (this.lightIds.length === 0) return Promise.resolve([]);
+    if (!this.offZoneId) return Promise.resolve([]);
 
-    const lightPromises = [];
-    for (const lightId of this.lightIds) {
-      lightPromises.push(
-        fetch(`${this.baseUrl}/lights/${lightId}/state`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ on: false, bri: 0 }),
-        })
-      );
-    }
-    return Promise.all(lightPromises).then(
-      (r) => {
-        console.log("Lights turned off");
-        return r;
-      },
-      (err) => {
-        console.error("Error turning off lights:", err);
+    return this.turnOffZone(this.offZoneId)
+      .then(() => {
+        console.log("Off zone activated");
         return [];
-      }
-    );
+      })
+      .catch((err) => {
+        console.error("Error turning off zone:", err);
+        return [];
+      });
   }
 
-  private async listLights() {
+  private async listScenes() {
     try {
-      const res = await fetch(`${this.baseUrl}/lights`);
-      const lights = (await res.json()) as Record<string, { name: string }>;
-      console.log("Available lights:");
-      for (const [id, light] of Object.entries(lights)) {
-        console.log(`${id}: ${light.name}`);
+      const res = await fetch(`${this.baseUrl}/scenes`);
+      const scenes = (await res.json()) as Record<string, { name: string }>;
+      console.log("Available scenes:");
+      for (const [id, scene] of Object.entries(scenes)) {
+        console.log(`${id}: ${scene.name}`);
       }
       console.log(
-        "Set HUE_LIGHT_IDS to a comma-separated list of light IDs you want to control in .env"
+        `Set HUE_OFF_ZONE (${this.offZoneId}), HUE_SCENE_NOT_MEETING (${this.scenes.not_meeting}), and HUE_SCENE_MEETING (${this.scenes.meeting}) in .env`
       );
     } catch (err) {
-      console.error("Error listing lights:", err);
+      console.error("Error listing scenes:", err);
     }
   }
 
@@ -142,9 +175,9 @@ export default class MeetingLightController {
   }
 
   public async initializeLights() {
-    if (this.lightIds.length === 0) return;
-    console.log("Initializing lights to cool blue...");
-    await this.setLight(false); // Set to cool blue (not in meeting)
+    if (!this.scenes.not_meeting) return;
+    console.log("Initializing lights to 'Not Meeting' scene...");
+    await this.setLight(false);
   }
 
   private startPolling() {
@@ -162,11 +195,11 @@ export default class MeetingLightController {
           : inZoom
           ? "Zoom meeting"
           : "Google Meet extension";
-        console.log(`Meeting started (${source}), setting light to red`);
+        console.log(`Meeting started (${source}), activating meeting scene`);
         await this.setLight(true);
       } else if (!(inSlack || inZoom || inGoogle) && this.inMeeting) {
         this.inMeeting = false;
-        console.log("Meeting ended, setting light to cool blue");
+        console.log("Meeting ended, activating not meeting scene");
         await this.setLight(false);
       }
     } catch (err) {
@@ -175,13 +208,26 @@ export default class MeetingLightController {
   }
 
   private startServer(): void {
-    this.server = http.createServer(async (req, res) => {
-      // Add CORS headers to allow the browser extension's origin
+    const certPath = join(".certs", "cert.pem");
+    const keyPath = join(".certs", "key.pem");
+
+    if (!existsSync(certPath) || !existsSync(keyPath)) {
+      console.error(
+        "SSL certificates not found. Please run setup first: bun run setup.ts"
+      );
+      process.exit(1);
+    }
+
+    const options = {
+      cert: readFileSync(certPath),
+      key: readFileSync(keyPath),
+    };
+
+    this.server = https.createServer(options, async (req, res) => {
       res.setHeader("Access-Control-Allow-Origin", "*");
       res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
       res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-      // Handle preflight CORS requests
       if (req.method === "OPTIONS") {
         res.writeHead(204);
         res.end();
@@ -199,7 +245,7 @@ export default class MeetingLightController {
       res.end();
     });
     this.server.listen(1234, () =>
-      console.log("Listening for Google Meet events on http://localhost:1234")
+      console.log("Listening for Google Meet events on https://localhost:1234")
     );
   }
 
@@ -209,7 +255,7 @@ export default class MeetingLightController {
       this.inMeeting = true;
       this.googleMeetActive = true;
       console.log(
-        "Meeting started (Google Meet extension), setting light to red"
+        "Meeting started (Google Meet extension), activating meeting scene"
       );
       await this.setLight(true);
 
@@ -282,7 +328,7 @@ export default class MeetingLightController {
       const { inSlack, inZoom } = this.getStatusFromWindows();
       if (!inSlack && !inZoom && this.inMeeting) {
         console.log(
-          "Meeting ended (Google Meet extension), setting light to cool blue"
+          "Meeting ended (Google Meet extension), activating not meeting scene"
         );
         await this.setLight(false);
         this.inMeeting = false;
@@ -337,8 +383,12 @@ export default class MeetingLightController {
         this.networkOnline = true;
         console.log("Hue bridge reachable, starting controller");
         this.startServer();
-        if (this.lightIds.length === 0) {
-          await this.listLights();
+        if (
+          !this.offZoneId ||
+          !this.scenes.not_meeting ||
+          !this.scenes.meeting
+        ) {
+          await this.listScenes();
           process.exit(0);
         }
         await this.initializeLights();

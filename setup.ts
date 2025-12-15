@@ -4,13 +4,14 @@ import dotenv from "dotenv";
 import {
   intro,
   text,
-  multiselect,
+  select,
   confirm,
   outro,
   isCancel,
 } from "@clack/prompts";
 import os from "os";
 import { execSync } from "child_process";
+import { getOrCreateCertificate } from "./cert-utils";
 
 const ENV_FILE = ".env";
 
@@ -51,10 +52,6 @@ function detectUsername(): string {
   return os.userInfo().username;
 }
 
-function detectHomeDir(): string {
-  return os.homedir();
-}
-
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -71,8 +68,8 @@ async function ask<T>(
   return answer as Exclude<T, symbol>;
 }
 
-// Type for available light selection options
-type LightOption = { label: string; value: string };
+type SceneOption = { label: string; value: string };
+type ZoneOption = { label: string; value: string };
 
 async function main() {
   intro("🚀 Philips Hue Setup");
@@ -80,16 +77,20 @@ async function main() {
   // Initialize or load saved values
   let bridgeIp: string = process.env.HUE_BRIDGE_IP ?? "";
   let username: string = process.env.HUE_TOKEN ?? "";
-  let lightIds: string = process.env.HUE_LIGHT_IDS ?? "";
-  // Options for lighting selection
-  let lightOptions: LightOption[] = [];
+  let sceneOff: string = process.env.HUE_OFF_ZONE ?? "";
+  let sceneNotMeeting: string = process.env.HUE_SCENE_NOT_MEETING ?? "";
+  let sceneMeeting: string = process.env.HUE_SCENE_MEETING ?? "";
+  // Options for scene selection
+  let sceneOptions: SceneOption[] = [];
 
   // Helper to rewrite .env after each change
   function writeEnv() {
     const lines = [
       bridgeIp ? `HUE_BRIDGE_IP=${bridgeIp}` : undefined,
       username ? `HUE_TOKEN=${username}` : undefined,
-      lightIds ? `HUE_LIGHT_IDS=${lightIds}` : undefined,
+      sceneOff ? `HUE_OFF_ZONE=${sceneOff}` : undefined,
+      sceneNotMeeting ? `HUE_SCENE_NOT_MEETING=${sceneNotMeeting}` : undefined,
+      sceneMeeting ? `HUE_SCENE_MEETING=${sceneMeeting}` : undefined,
       "NODE_TLS_REJECT_UNAUTHORIZED=0",
     ].filter(Boolean) as string[];
     fs.writeFileSync(
@@ -188,44 +189,98 @@ async function main() {
     },
   });
 
-  // Step 3: Fetch available lights
-  console.log("\nStep 3: Fetching lights from bridge...");
-  const lightsRes = await fetch(`http://${bridgeIp}/api/${username}/lights`);
-  const lights = (await lightsRes.json()) as Record<string, { name: string }>;
-  lightOptions = Object.entries(lights).map<LightOption>(([id, l]) => ({
-    label: l.name,
+  // Step 3: Fetch available scenes and zones
+  console.log("\nStep 3: Fetching scenes and zones from bridge...");
+  const scenesRes = await fetch(`http://${bridgeIp}/api/${username}/scenes`);
+  const scenes = (await scenesRes.json()) as Record<string, { name: string }>;
+  sceneOptions = Object.entries(scenes).map<SceneOption>(([id, s]) => ({
+    label: s.name,
     value: id,
   }));
 
-  // Step 4: Select lights to control
-  console.log("\nStep 4: Select lights to control");
-  lightIds = await checkCurrentValue({
-    currentValue: lightIds,
-    message: "Use previous lights selection",
-    displayValue: (ids) => {
-      const selectedIds = ids.split(",");
-      const lightNames = selectedIds
-        .map((id) => {
-          const option = lightOptions.find((opt) => opt.value === id);
-          return option ? option.label : id;
-        })
-        .join(", ");
-      return lightNames;
+  const groupsRes = await fetch(`http://${bridgeIp}/api/${username}/groups`);
+  const groups = (await groupsRes.json()) as Record<
+    string,
+    { name: string; type?: string }
+  >;
+  const zoneOptions: ZoneOption[] = Object.entries(groups)
+    .filter(([_, group]) => group.type === "Zone" || group.type === "Room")
+    .map<ZoneOption>(([id, group]) => ({
+      label: group.name,
+      value: id,
+    }));
+
+  // Step 4: Select zones and scenes
+  console.log("\nStep 4: Select zones and scenes");
+
+  console.log("\nSelect 'Off' zone (used when service shuts down):");
+  sceneOff = await checkCurrentValue({
+    currentValue: sceneOff,
+    message: "Use previous 'Off' zone",
+    displayValue: (id) => {
+      const zoneId = id;
+      const option = zoneOptions.find((opt) => opt.value === zoneId);
+      return option ? option.label : id;
     },
     getNewValue: async () => {
-      const selectedLights = await ask(() =>
-        multiselect({
-          message: "Select the lights you want to control:",
-          options: lightOptions,
-          required: true,
+      return await ask(() =>
+        select({
+          message: "Select the 'Off' zone:",
+          options: zoneOptions,
         })
       );
-
-      return selectedLights.join(",");
     },
   });
 
-  // Final confirmation
+  console.log("\nSelect 'Not Meeting' scene (used when not in a meeting):");
+  sceneNotMeeting = await checkCurrentValue({
+    currentValue: sceneNotMeeting,
+    message: "Use previous 'Not Meeting' scene",
+    displayValue: (id) => {
+      const option = sceneOptions.find((opt) => opt.value === id);
+      return option ? option.label : id;
+    },
+    getNewValue: async () => {
+      const selected = await ask(() =>
+        select({
+          message: "Select the 'Not Meeting' scene:",
+          options: sceneOptions,
+        })
+      );
+      return selected;
+    },
+  });
+
+  console.log("\nSelect 'Meeting' scene (used when in a meeting):");
+  sceneMeeting = await checkCurrentValue({
+    currentValue: sceneMeeting,
+    message: "Use previous 'Meeting' scene",
+    displayValue: (id) => {
+      const option = sceneOptions.find((opt) => opt.value === id);
+      return option ? option.label : id;
+    },
+    getNewValue: async () => {
+      const selected = await ask(() =>
+        select({
+          message: "Select the 'Meeting' scene:",
+          options: sceneOptions,
+        })
+      );
+      return selected;
+    },
+  });
+
+  console.log("\nStep 5: Generating SSL certificates...");
+  try {
+    const { cert, key } = getOrCreateCertificate();
+    console.log(`✅ SSL certificates ready at ${cert} and ${key}`);
+  } catch (error: any) {
+    console.error("❌ Failed to generate SSL certificates:", error.message);
+    console.log("   The service may not be able to start without certificates.");
+    process.exit(1);
+  }
+
+  writeEnv();
   outro("✅ Setup complete! .env file created/updated.");
   console.log(
     "\n🎯 Meeting Light Controller is now configured as a user agent."
@@ -245,7 +300,6 @@ async function main() {
   const label = `com.${user}.meeting-light`;
   const cwd = process.cwd();
   const bunPath = detectBunPath();
-  const homeDir = detectHomeDir();
 
   const plistContent = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -255,18 +309,19 @@ async function main() {
     <string>${label}</string>
     <key>ProgramArguments</key>
     <array>
-        <string>osascript</string>
-        <string>-e</string>
-        <string>tell application "Terminal" to do script "cd '${cwd}' &amp;&amp; export PATH='${homeDir}/.local/share/mise/shims:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin' &amp;&amp; export HOME='${homeDir}' &amp;&amp; ${bunPath} run index.ts"</string>
+        <string>${bunPath}</string>
+        <string>run</string>
+        <string>index.ts</string>
     </array>
     <key>KeepAlive</key>
-    <false/>
+    <true/>
     <key>RunAtLoad</key>
     <true/>
     <key>WorkingDirectory</key>
     <string>${cwd}</string>
-    <key>ProcessType</key>
-    <string>Interactive</string>
+    <string>${cwd}/output.log</string>
+    <key>StandardErrorPath</key>
+    <string>${cwd}/error.log</string>
     <key>LimitLoadToSessionType</key>
     <string>Aqua</string>
 </dict>

@@ -1,5 +1,5 @@
 (function () {
-  const ENDPOINT = "http://localhost:1234";
+  const ENDPOINT = "https://localhost:1234";
   const HEARTBEAT_INTERVAL = 10000; // 10 seconds
   const LEAVE_CALL_SELECTOR = 'button[aria-label="Leave call"]';
 

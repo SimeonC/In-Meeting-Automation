@@ -26,11 +26,17 @@ Automatically controls your Philips Hue lights when you join/leave meetings (Sla
 
 ## Setup
 
+Before running setup, create 2 scenes in your Hue app:
+
+- **"Not Meeting"** - Scene to activate when not in a meeting
+- **"Meeting"** - Scene to activate when in a meeting
+
 Run the interactive setup to:
 
 - Enter your Hue Bridge IP address
 - Register a new Hue API token (press the bridge button when prompted)
-- Select multiple Hue lights to control
+- Select a zone for the "Off" state (used when service shuts down)
+- Select the 2 scenes (Not Meeting, Meeting)
 - Generate a `LaunchAgent` plist (macOS) and optionally load it via `launchctl`
 
 ```bash
@@ -42,7 +48,9 @@ This will create or update a `.env` file in the project root with:
 ```dotenv
 HUE_BRIDGE_IP=<your-bridge-ip>
 HUE_TOKEN=<your-username-token>
-HUE_LIGHT_IDS=<comma-separated-light-ids>
+HUE_OFF_ZONE=zone:<zone-id>
+HUE_SCENE_NOT_MEETING=<scene-id>
+HUE_SCENE_MEETING=<scene-id>
 NODE_TLS_REJECT_UNAUTHORIZED=0
 ```
 
@@ -59,13 +67,13 @@ bun run index.ts
 The service will:
 
 - Clear `error.log` and `output.log` on startup
-- Initialize all selected lights to cool blue on startup
+- Initialize lights to the "Not Meeting" scene on startup
 - Listen for Slack huddles and Zoom meetings via window polling
-- Listen for Google Meet start/end events on `http://localhost:1234` from the browser extension
-- Turn all selected lights red when a meeting starts
-- Turn all selected lights to cool blue when a meeting ends
-- Turn off all lights when the service shuts down
-- Handle browser tab closures with a 5-minute timeout for Google Meet
+- Listen for Google Meet start/end events on `https://localhost:1234` from the browser extension
+- Activate the "Meeting" scene when a meeting starts
+- Activate the "Not Meeting" scene when a meeting ends
+- Turn off the selected zone when the service shuts down
+- Handle browser tab closures with a 30-second timeout for Google Meet
 
 ## Browser Extension (Google Meet Support)
 
@@ -94,7 +102,7 @@ To get Google Meet events into this tool, install the companion content script i
    ```
 3. In Chrome/Edge/Brave, go to `chrome://extensions`, enable **Developer mode**, click **Load unpacked**, and select the `meet-extension` folder.
 
-Once enabled, the extension will POST to `http://localhost:1234/meeting-start` and `/meeting-end` on Meet join/leave.
+Once enabled, the extension will POST to `https://localhost:1234/meeting-start` and `/meeting-end` on Meet join/leave.
 
 ## Logs & Troubleshooting
 
