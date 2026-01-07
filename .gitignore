@@ -183,3 +183,4 @@ dist
 /output.log
 /error-previous.log
 /output-previous.log
+debug.log

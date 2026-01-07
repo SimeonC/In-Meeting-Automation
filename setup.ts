@@ -71,6 +71,39 @@ async function ask<T>(
 type SceneOption = { label: string; value: string };
 type ZoneOption = { label: string; value: string };
 
+async function registerCertificateWithKeychain(certPath: string): Promise<void> {
+  const certAbsolutePath = path.resolve(process.cwd(), certPath);
+
+  if (!fs.existsSync(certAbsolutePath)) {
+    throw new Error(`Certificate file not found: ${certAbsolutePath}`);
+  }
+
+  try {
+    execSync(
+      `security add-trusted-cert -d -r trustRoot "${certAbsolutePath}"`,
+      { stdio: "pipe" }
+    );
+  } catch (error: any) {
+    const errorMessage = error.message || String(error);
+    if (errorMessage.includes("already exists") || errorMessage.includes("duplicate")) {
+      try {
+        execSync(
+          `security delete-certificate -c "localhost"`,
+          { stdio: "pipe" }
+        );
+        execSync(
+          `security add-trusted-cert -d -r trustRoot "${certAbsolutePath}"`,
+          { stdio: "pipe" }
+        );
+      } catch (retryError: any) {
+        throw new Error(`Failed to update existing certificate: ${retryError.message || retryError}`);
+      }
+    } else {
+      throw new Error(`Failed to add certificate to keychain: ${errorMessage}`);
+    }
+  }
+}
+
 async function main() {
   intro("🚀 Philips Hue Setup");
 
@@ -271,13 +304,29 @@ async function main() {
   });
 
   console.log("\nStep 5: Generating SSL certificates...");
+  let certPath: string;
   try {
     const { cert, key } = getOrCreateCertificate();
+    certPath = cert;
     console.log(`✅ SSL certificates ready at ${cert} and ${key}`);
   } catch (error: any) {
     console.error("❌ Failed to generate SSL certificates:", error.message);
     console.log("   The service may not be able to start without certificates.");
     process.exit(1);
+  }
+
+  console.log("\nStep 6: Registering certificate with system keychain...");
+  try {
+    await registerCertificateWithKeychain(certPath);
+    console.log("✅ Certificate registered with macOS Keychain");
+    console.log("   Chrome and other browsers should now trust the certificate");
+  } catch (error: any) {
+    console.error("❌ Failed to register certificate:", error.message);
+    console.log("   You may need to manually trust the certificate:");
+    console.log(`   1. Open Keychain Access`);
+    console.log(`   2. Find 'localhost' in the login keychain`);
+    console.log(`   3. Double-click it and set 'When using this certificate' to 'Always Trust'`);
+    console.log("   Or run: security add-trusted-cert -d -r trustRoot -k ~/Library/Keychains/login.keychain-db .certs/cert.pem");
   }
 
   writeEnv();
@@ -299,7 +348,6 @@ async function main() {
   const user = detectUsername();
   const label = `com.${user}.meeting-light`;
   const cwd = process.cwd();
-  const bunPath = detectBunPath();
 
   const plistContent = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -309,19 +357,12 @@ async function main() {
     <string>${label}</string>
     <key>ProgramArguments</key>
     <array>
-        <string>${bunPath}</string>
-        <string>run</string>
-        <string>index.ts</string>
+        <string>/usr/bin/osascript</string>
+        <string>-e</string>
+        <string>tell application "Terminal" to do script "cd ${cwd} &amp;&amp; bun run index.ts"</string>
     </array>
-    <key>KeepAlive</key>
-    <true/>
     <key>RunAtLoad</key>
     <true/>
-    <key>WorkingDirectory</key>
-    <string>${cwd}</string>
-    <string>${cwd}/output.log</string>
-    <key>StandardErrorPath</key>
-    <string>${cwd}/error.log</string>
     <key>LimitLoadToSessionType</key>
     <string>Aqua</string>
 </dict>

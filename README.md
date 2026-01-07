@@ -80,7 +80,7 @@ The service will:
 To get Google Meet events into this tool, install the companion content script in your browser. This can be done by an extension like scriptmonkey, arc boosts or the following to create your own custom chrome extension.
 
 1. Create a new folder (e.g. `meet-extension`).
-2. Inside that folder, place `browser-extension.js` (from this repo) and a `manifest.json`:
+2. Inside that folder, place `browser-extension/index.js` (from this repo) and a `manifest.json`:
    ```json
    {
      "manifest_version": 3,
@@ -90,12 +90,12 @@ To get Google Meet events into this tool, install the companion content script i
      "permissions": [],
      "host_permissions": [
        "https://meet.google.com/*",
-       "http://localhost:1234/*"
+       "https://localhost:1234/*"
      ],
      "content_scripts": [
        {
          "matches": ["https://meet.google.com/*"],
-         "js": ["browser-extension.js"]
+         "js": ["index.js"]
        }
      ]
    }

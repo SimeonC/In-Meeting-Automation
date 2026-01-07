@@ -34,3 +34,4 @@ export function getOrCreateCertificate(): CertificatePaths {
 
   return { cert: CERT_PATH, key: KEY_PATH };
 }
+
