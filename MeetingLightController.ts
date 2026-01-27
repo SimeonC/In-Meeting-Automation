@@ -188,7 +188,9 @@ export default class MeetingLightController {
     try {
       const { inSlack, inZoom } = this.getStatusFromWindows();
       const inGoogle = this.googleMeetActive;
-      if ((inSlack || inZoom || inGoogle) && !this.inMeeting) {
+      const anyMeetingActive = inSlack || inZoom || inGoogle;
+
+      if (anyMeetingActive && !this.inMeeting) {
         this.inMeeting = true;
         const source = inSlack
           ? "Slack huddle"
@@ -197,10 +199,12 @@ export default class MeetingLightController {
           : "Google Meet extension";
         console.log(`Meeting started (${source}), activating meeting scene`);
         await this.setLight(true);
-      } else if (!(inSlack || inZoom || inGoogle) && this.inMeeting) {
+      } else if (!anyMeetingActive) {
+        if (this.inMeeting) {
+          console.log("Meeting ended, activating not meeting scene");
+          await this.setLight(false);
+        }
         this.inMeeting = false;
-        console.log("Meeting ended, activating not meeting scene");
-        await this.setLight(false);
       }
     } catch (err) {
       console.error("Error in meeting check:", err);
@@ -288,6 +292,9 @@ export default class MeetingLightController {
   } {
     try {
       const windows = openWindowsSync();
+      if (!windows?.length) {
+        return { inSlack: false, inZoom: false };
+      }
       const inSlack = this.detectSlackHuddle(windows);
       const inZoom = this.detectZoomMeeting(windows);
       return { inSlack, inZoom };
@@ -296,7 +303,6 @@ export default class MeetingLightController {
         err instanceof Error &&
         err.message.includes("screen recording permission")
       ) {
-        // Only log this error once to avoid spam
         if (!this.screenRecordingErrorLogged) {
           console.warn("⚠️  Screen recording permission not available.");
           console.warn("   To enable Slack and Zoom detection:");
@@ -322,6 +328,7 @@ export default class MeetingLightController {
       clearTimeout(this.googleMeetTimeout);
       this.googleMeetTimeout = undefined;
     }
+    this.googleMeetActive = false;
 
     // Only turn off if not in Slack or Zoom
     try {
@@ -332,7 +339,6 @@ export default class MeetingLightController {
         );
         await this.setLight(false);
         this.inMeeting = false;
-        this.googleMeetActive = false;
       } else if (inSlack || inZoom) {
         console.log(
           "Meeting ended (Google Meet extension), but in Slack or Zoom"

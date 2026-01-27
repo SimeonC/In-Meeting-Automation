@@ -1,14 +1,7 @@
 import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
-import {
-  intro,
-  text,
-  select,
-  confirm,
-  outro,
-  isCancel,
-} from "@clack/prompts";
+import { intro, text, select, confirm, outro, isCancel } from "@clack/prompts";
 import os from "os";
 import { execSync } from "child_process";
 import { getOrCreateCertificate } from "./cert-utils";
@@ -39,7 +32,7 @@ function detectBunPath(): string {
   }
 
   throw new Error(
-    "Could not detect Bun installation. Please ensure Bun is installed and in your PATH."
+    "Could not detect Bun installation. Please ensure Bun is installed and in your PATH.",
   );
 }
 
@@ -58,7 +51,7 @@ function sleep(ms: number): Promise<void> {
 
 // Helper to wrap a prompt and handle cancellation
 async function ask<T>(
-  operation: () => Promise<T>
+  operation: () => Promise<T>,
 ): Promise<Exclude<T, symbol>> {
   const answer = await operation();
   if (isCancel(answer)) {
@@ -71,7 +64,9 @@ async function ask<T>(
 type SceneOption = { label: string; value: string };
 type ZoneOption = { label: string; value: string };
 
-async function registerCertificateWithKeychain(certPath: string): Promise<void> {
+async function registerCertificateWithKeychain(
+  certPath: string,
+): Promise<void> {
   const certAbsolutePath = path.resolve(process.cwd(), certPath);
 
   if (!fs.existsSync(certAbsolutePath)) {
@@ -81,22 +76,26 @@ async function registerCertificateWithKeychain(certPath: string): Promise<void> 
   try {
     execSync(
       `security add-trusted-cert -d -r trustRoot "${certAbsolutePath}"`,
-      { stdio: "pipe" }
+      { stdio: "pipe" },
     );
   } catch (error: any) {
     const errorMessage = error.message || String(error);
-    if (errorMessage.includes("already exists") || errorMessage.includes("duplicate")) {
+    if (
+      errorMessage.includes("already exists") ||
+      errorMessage.includes("duplicate")
+    ) {
       try {
-        execSync(
-          `security delete-certificate -c "localhost"`,
-          { stdio: "pipe" }
-        );
+        execSync(`security delete-certificate -c "localhost"`, {
+          stdio: "pipe",
+        });
         execSync(
           `security add-trusted-cert -d -r trustRoot "${certAbsolutePath}"`,
-          { stdio: "pipe" }
+          { stdio: "pipe" },
         );
       } catch (retryError: any) {
-        throw new Error(`Failed to update existing certificate: ${retryError.message || retryError}`);
+        throw new Error(
+          `Failed to update existing certificate: ${retryError.message || retryError}`,
+        );
       }
     } else {
       throw new Error(`Failed to add certificate to keychain: ${errorMessage}`);
@@ -128,7 +127,7 @@ async function main() {
     ].filter(Boolean) as string[];
     fs.writeFileSync(
       path.resolve(process.cwd(), ENV_FILE),
-      lines.join("\n") + "\n"
+      lines.join("\n") + "\n",
     );
   }
 
@@ -151,7 +150,7 @@ async function main() {
         confirm({
           message: `${message}: ${displayText}`,
           initialValue: true,
-        })
+        }),
       );
 
       if (useExisting) {
@@ -172,8 +171,8 @@ async function main() {
     getNewValue: async () =>
       String(
         await ask(() =>
-          text({ message: "Enter Bridge IP", placeholder: "192.168.x.x" })
-        )
+          text({ message: "Enter Bridge IP", placeholder: "192.168.x.x" }),
+        ),
       ),
   });
 
@@ -202,7 +201,7 @@ async function main() {
           if (Array.isArray(data) && data[0].error) {
             if (data[0].error.type === 101) {
               console.log(
-                "> Link button not pressed yet. Retrying in 5 seconds..."
+                "> Link button not pressed yet. Retrying in 5 seconds...",
               );
               await sleep(5000);
               continue;
@@ -260,7 +259,7 @@ async function main() {
         select({
           message: "Select the 'Off' zone:",
           options: zoneOptions,
-        })
+        }),
       );
     },
   });
@@ -278,7 +277,7 @@ async function main() {
         select({
           message: "Select the 'Not Meeting' scene:",
           options: sceneOptions,
-        })
+        }),
       );
       return selected;
     },
@@ -297,7 +296,7 @@ async function main() {
         select({
           message: "Select the 'Meeting' scene:",
           options: sceneOptions,
-        })
+        }),
       );
       return selected;
     },
@@ -311,7 +310,9 @@ async function main() {
     console.log(`✅ SSL certificates ready at ${cert} and ${key}`);
   } catch (error: any) {
     console.error("❌ Failed to generate SSL certificates:", error.message);
-    console.log("   The service may not be able to start without certificates.");
+    console.log(
+      "   The service may not be able to start without certificates.",
+    );
     process.exit(1);
   }
 
@@ -319,29 +320,35 @@ async function main() {
   try {
     await registerCertificateWithKeychain(certPath);
     console.log("✅ Certificate registered with macOS Keychain");
-    console.log("   Chrome and other browsers should now trust the certificate");
+    console.log(
+      "   Chrome and other browsers should now trust the certificate",
+    );
   } catch (error: any) {
     console.error("❌ Failed to register certificate:", error.message);
     console.log("   You may need to manually trust the certificate:");
     console.log(`   1. Open Keychain Access`);
     console.log(`   2. Find 'localhost' in the login keychain`);
-    console.log(`   3. Double-click it and set 'When using this certificate' to 'Always Trust'`);
-    console.log("   Or run: security add-trusted-cert -d -r trustRoot -k ~/Library/Keychains/login.keychain-db .certs/cert.pem");
+    console.log(
+      `   3. Double-click it and set 'When using this certificate' to 'Always Trust'`,
+    );
+    console.log(
+      "   Or run: security add-trusted-cert -d -r trustRoot -k ~/Library/Keychains/login.keychain-db .certs/cert.pem",
+    );
   }
 
   writeEnv();
   outro("✅ Setup complete! .env file created/updated.");
   console.log(
-    "\n🎯 Meeting Light Controller is now configured as a user agent."
+    "\n🎯 Meeting Light Controller is now configured as a user agent.",
   );
   console.log(
-    "   This is safer than a system service and can request permissions directly."
+    "   This is safer than a system service and can request permissions directly.",
   );
   console.log(
-    "   Google Meet detection will work immediately via browser extension."
+    "   Google Meet detection will work immediately via browser extension.",
   );
   console.log(
-    "   Slack and Zoom detection requires screen recording permissions for 'Bun'."
+    "   Slack and Zoom detection requires screen recording permissions for 'Bun'.",
   );
 
   // Final step: create LaunchAgent plist in the current directory
@@ -359,7 +366,7 @@ async function main() {
     <array>
         <string>/usr/bin/osascript</string>
         <string>-e</string>
-        <string>tell application "Terminal" to do script "cd ${cwd} &amp;&amp; bun run index.ts"</string>
+        <string>tell application "Terminal" to do script "cd ${cwd} &amp;&amp; bun run index.ts &amp;&amp; exit"</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -377,17 +384,17 @@ async function main() {
   console.log("   This will run as a user agent (safer than system service)");
   console.log("   It can request permissions directly from the user");
   console.log(
-    "   For full functionality, you'll need to grant screen recording permissions to 'Bun'"
+    "   For full functionality, you'll need to grant screen recording permissions to 'Bun'",
   );
   console.log(
-    "   The service will work with Google Meet detection even without permissions"
+    "   The service will work with Google Meet detection even without permissions",
   );
 
   // Prompt to load into launchctl
   const shouldLoad = await ask(() =>
     confirm({
       message: "Would you like to load this plist into launchctl now?",
-    })
+    }),
   );
 
   const launchAgentsDir = detectLaunchAgentsDir();
@@ -397,7 +404,7 @@ async function main() {
   // Check if directory exists and is writable
   if (!fs.existsSync(launchAgentsDir)) {
     console.log(
-      `${launchAgentsDir} doesn't exist. Creating it requires sudo privileges.`
+      `${launchAgentsDir} doesn't exist. Creating it requires sudo privileges.`,
     );
     execSync(`mkdir -p "${launchAgentsDir}"`, { stdio: "inherit" });
   }
@@ -422,14 +429,14 @@ async function main() {
       console.log("✅ Loaded plist into launchctl");
       console.log("\n🔐 Next Steps for Full Functionality:");
       console.log(
-        "   1. Open System Settings > Privacy & Security > Screen & System Audio Recording"
+        "   1. Open System Settings > Privacy & Security > Screen & System Audio Recording",
       );
       console.log("   2. Add 'Bun' to the list of allowed applications");
       console.log(
-        "   3. The service will automatically detect the permission change"
+        "   3. The service will automatically detect the permission change",
       );
       console.log(
-        "   4. Check the logs to see if Slack and Zoom detection is working"
+        "   4. Check the logs to see if Slack and Zoom detection is working",
       );
     } catch (error: any) {
       console.error("❌ Failed to load plist:", error.message);
@@ -447,7 +454,7 @@ async function main() {
   const shouldLaunchOnLogin = await ask(() =>
     confirm({
       message: "Would you like to make this start automatically on login?",
-    })
+    }),
   );
 
   if (shouldLaunchOnLogin && !shouldLoad) {
@@ -456,7 +463,7 @@ async function main() {
       execSync(`chmod 644 "${targetPath}"`, { stdio: "inherit" });
 
       console.log(
-        `✅ Copied plist to ${targetPath} for automatic startup on login`
+        `✅ Copied plist to ${targetPath} for automatic startup on login`,
       );
       const domainTarget = `gui/$(id -u)`;
       console.log(`\nTo load it, run:`);
@@ -464,7 +471,7 @@ async function main() {
     } catch (error) {
       console.error("Error setting up launch on login:", error);
       console.log(
-        "You can manually copy the plist file to ~/Library/LaunchAgents and load it."
+        "You can manually copy the plist file to ~/Library/LaunchAgents and load it.",
       );
     }
   }
