@@ -8,58 +8,76 @@
 import Foundation
 import AppKit
 import ApplicationServices
+import SwiftUI
 
 struct MeetingWindowInfo {
     let appName: String
     let title: String
     let pid: pid_t
 }
+extension MeetingWindowInfo: Identifiable {
+    var id: pid_t { pid }
+}
 
 struct MeetingDetector {
     let name: MeetingType
-    let detect: (MeetingWindowInfo) -> Bool
+    let isActive: ([MeetingWindowInfo]) -> Bool
+}
+extension MeetingDetector: Identifiable {
+    var id: MeetingType { name }
 }
 
-enum MeetingType {
+enum MeetingType: String {
     case Slack, Zoom, Google
+    
+    var label: String { String(rawValue) }
 }
 
-let googleMeetServer = MeetServer.init()
-
-let meetingDetectors = [
-    MeetingDetector(
-        name: MeetingType.Slack,
-        detect: { $0.appName == "Slack" && ($0.title.contains("🏠") || $0.title.lowercased().contains("huddle")) }
-    ),
-    MeetingDetector(
-        name: MeetingType.Zoom,
-        detect: { $0.appName.lowercased().contains("zoom") && $0.title.lowercased().contains("zoom meeting") }
-    ),
-    MeetingDetector(
-        name: MeetingType.Google,
-        detect: {_ in 
-            MeetServer.shared.isInMeeting()
-        }
-    )
-]
-
+@Observable
 final class MeetingStatus {
     let hueService: HueService
+    let googleMeetServer: MeetServer
     var activeMeetings: [MeetingType]
     var windows: [MeetingWindowInfo]
+    let meetingDetectors: [MeetingDetector]
     
     private var pollTask: Task<Void, Never>?
     private var interval: Duration = .seconds(2)
     
     var isMeeting: Bool { activeMeetings.count > 0 }
     
-    init(hueService: HueService) {
-        self.hueService = hueService
-        self.activeMeetings = []
-        self.windows = []
+    func isActive(_ md: MeetingDetector) -> Bool {
+        activeMeetings.contains(md.name)
     }
     
-    func start() {
+    init(config: Config) {
+        self.hueService = HueService(config: config)
+        self.activeMeetings = []
+        self.windows = []
+        let googleMeetServer = MeetServer()
+        self.googleMeetServer = googleMeetServer
+        self.meetingDetectors = [
+            MeetingDetector(
+                name: MeetingType.Slack,
+                isActive: { $0.contains(where: { $0.appName == "Slack" && ($0.title.contains("🏠") || $0.title.lowercased().contains("huddle")) }) }
+            ),
+            MeetingDetector(
+                name: MeetingType.Zoom,
+                isActive: { $0.contains(where: {  $0.appName.lowercased().contains("zoom") && $0.title.lowercased().contains("zoom meeting") }) }
+            ),
+            MeetingDetector(
+                name: MeetingType.Google,
+                isActive: { _ in googleMeetServer.isInMeeting() }
+            )
+        ]
+    }
+    
+    func start() async throws {
+        print("Set initial meeting")
+        try? await hueService.toggleMeeting(false)
+        print("Start google meet server")
+        try googleMeetServer.start()
+        print("Start Meeting service checks!")
         stop()
         pollTask = Task { [weak self] in
             while let self, !Task.isCancelled {
@@ -76,17 +94,16 @@ final class MeetingStatus {
     
     func check() async throws {
         let wasMeeting = isMeeting
-        updateWindows()
-        activeMeetings = meetingDetectors.compactMap({
-            let isActive = windows.contains(where: $0.detect)
-            if isActive { return $0.name }
-            else { return nil }
-        })
+        try! updateWindows()
+        activeMeetings = meetingDetectors.compactMap {
+            $0.isActive(windows) ? $0.name : nil
+        }
+        print("Active meetings \(activeMeetings)")
         if wasMeeting == isMeeting { return }
         try await hueService.toggleMeeting(isMeeting)
     }
     
-    private func updateWindows() {
+    private func updateWindows() throws {
         var result: [MeetingWindowInfo] = []
         for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
             guard let name = app.localizedName else { continue }
@@ -113,40 +130,5 @@ final class MeetingStatus {
             }
             return titleRef as? String
         }
-    }
-}
-
-extension MeetingStatus {
-    static var shared: MeetingStatus!
-    
-    static func start(hueService: HueService) async throws {
-        Self.shared = Self.init(hueService: hueService)
-        try await hueService.toggleMeeting(false)
-    }
-    
-    func debugText() -> String {
-        var lines: [String] = []
-        lines.append("-- In Meeting [Debug] --")
-        meetingDetectors.forEach {
-            let isActive = activeMeetings.contains($0.name)
-            lines.append("\(isActive ? "💡" : "⏻") \($0.name)")
-        }
-        lines.append("")
-        if Config.isTrusted {
-            lines.append("── Open windows (\(windows.count)) ──")
-            if windows.isEmpty {
-                lines.append("  (none)")
-            } else {
-                for (i, w) in windows.enumerated() {
-                    lines.append("\(i + 1). \(w.appName) [\(w.pid)]")
-                    lines.append("   \"\(w.title)\"")
-                }
-            }
-        } else {
-            lines.append("Accessibility: NOT granted ⚠️")
-        }
-        lines.append("")
-        lines.append("Updated: \(Date().formatted(date: .omitted, time: .standard))")
-        return lines.joined(separator: "\n")
     }
 }

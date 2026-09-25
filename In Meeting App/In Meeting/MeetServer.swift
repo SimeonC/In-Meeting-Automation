@@ -8,56 +8,30 @@ import Network
 import Foundation
 
 final class MeetServer {
-    private static let certsDir: URL = {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return base.appendingPathComponent("InMeeting/certs", isDirectory: true)
-    }()
-
-    private static let certPath: String = certsDir.appendingPathComponent("cert.pem").path
-    private static let keyPath:  String = certsDir.appendingPathComponent("key.pem").path
-
-    private static let loginKeychainPath: String = {
-        NSHomeDirectory() + "/Library/Keychains/login.keychain-db"
-    }()
-    
-    static func ensureCerts() throws {
-        try! run("/usr/bin/openssl", ["req", "-x509", "-newkey", "rsa:2048", "-keyout", keyPath, "-out", certPath, "-days", "365", "-nodes", "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:::1"])
-        try! run("/usr/bin/security", ["import", keyPath, "-k", loginKeychainPath])
-        try! run("/usr/bin/security", ["add-trusted-cert", "-d", "-r", "trustRoot", "-k", loginKeychainPath, certPath])
-    }
-    
-    private static func run(_ launchPath: String, _ args: [String]) throws -> String {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: launchPath)
-        p.arguments = args
-        let pipe = Pipe()
-        p.standardOutput = pipe
-        p.standardError = pipe
-        try p.run()
-        p.waitUntilExit()
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        guard p.terminationStatus == 0 else {
-            throw NSError(domain: "setup", code: Int(p.terminationStatus),
-                          userInfo: [NSLocalizedDescriptionKey: String(data: data, encoding: .utf8) ?? ""])
-        }
-        return String(data: data, encoding: .utf8) ?? ""
-    }
-    
     private var listener: NWListener?
     private let queue = DispatchQueue(label: "meetserver")
     private var inMeeting = false
     private var meetingTimeout: DispatchWorkItem?
     
     func isInMeeting() -> Bool {
+        print("check isInMeeting \(self.inMeeting)")
         return self.inMeeting
     }
     
     func start() throws {
-        let params = NWParameters.tls
-        let listener = try NWListener(using: params, on: 1234)
+        let listener = try NWListener(using: .tcp, on: NWEndpoint.Port(rawValue: 16338)!)
+        print("Google Meet Extension starting...")
         
-        listener.stateUpdateHandler = { state in
-            print(state)
+        listener.stateUpdateHandler = { [weak self] state in
+            switch state {
+            case .ready:
+                print("Server listening on port 16338")
+            case .failed(let error):
+                print("Server failed: \(error)")
+                self?.listener?.cancel()
+            default:
+                break
+            }
         }
         listener.newConnectionHandler = { [weak self] conn in
             self?.handle(conn)
@@ -68,18 +42,28 @@ final class MeetServer {
     
     private func handle(_ conn: NWConnection) {
         conn.start(queue: queue)
-        conn.receive(minimumIncompleteLength: 1, maximumLength: 4096) { [weak self, weak conn] data, _, _, error in
+        receive(conn)
+    }
+    
+    private func receive(_ conn: NWConnection) {
+        conn.receive(minimumIncompleteLength: 1, maximumLength: 4096) { [weak self, weak conn] data, _, isComplete, error in
             guard let conn, let data, data.count > 0 else {
                 conn?.cancel(); return
             }
             self?.process(conn, data)
+            if isComplete && conn.state != NWConnection.State.cancelled {
+                conn.cancel()
+            } else if error == nil {
+                self?.receive(conn)
+            }
         }
     }
     
     private func process(_ conn: NWConnection, _ data: Data) {
-        let requestLines = data.base64EncodedString().split(separator: "\r\n")
-        let urlParts = requestLines[0].split(separator: " ")
-        guard urlParts.count >= 2 else {
+        let requestData = String(data: data, encoding: .utf8)
+        let requestLines = requestData?.split(separator: "\r\n")
+        guard let urlParts = requestLines?[0].split(separator: " "),
+            urlParts.count >= 2 else {
             reply(conn, "400")
             return
         }
@@ -119,23 +103,16 @@ final class MeetServer {
     
     private func reply(_ conn: NWConnection, _ status: String) {
         let message = """
-         HTTP/1.1 \(status)
-         Access-Control-Allow-Origin: *
-         Access-Control-Allow-Methods: POST, OPTIONS
-         Access-Control-Allow-Headers: Content-Type
-         Connection: close
-         Content-Length: 0
-         """
-        conn.send(content: message.data(using: .utf8), completion: .idempotent)
-    }
-}
-
-extension MeetServer {
-    static var shared: MeetServer!
-    
-    static func start() throws {
-        try! Self.ensureCerts()
-        Self.shared = Self.init()
-        try! Self.shared.start()
+        HTTP/1.1 \(status)
+        Access-Control-Allow-Origin: *
+        Access-Control-Allow-Methods: POST, OPTIONS
+        Access-Control-Allow-Headers: Content-Type
+        Content-Length: 0
+        Connection: close
+        
+        """
+        conn.send(content: message.data(using: .utf8), completion: .contentProcessed { _ in
+            conn.cancel()
+        })
     }
 }

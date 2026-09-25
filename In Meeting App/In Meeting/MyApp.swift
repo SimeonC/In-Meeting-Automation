@@ -5,15 +5,38 @@ import AppKit
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
     var body: some Scene {
+        MenuBarExtra (
+            "In Meeting",
+            systemImage: appDelegate.model.isInMeeting ?  "person.crop.square.badge.video.fill" : "bolt.fill"
+        ) {
+            Group {
+                Text("In Meeting")
+                SettingsLink {
+                    Text("Settings")
+                }.keyboardShortcut(",")
+                Divider()
+                Button("Quit") {
+                    NSApp.terminate(nil)
+                }.keyboardShortcut("q")
+            }
+        }
         Settings {
-            Text("In Meeting - settings")
-                .padding()
+            TabView {
+                SettingsView(model: appDelegate.model)
+                    .tabItem { Label("Settings", systemImage: "gearshape") }
+                DebugView(model: appDelegate.model)
+                    .tabItem { Label("Debugging", systemImage: "ladybug.fill") }
+            }
+            .tabViewStyle(.sidebarAdaptable)
+            .onAppear {
+                NSApp.activate(ignoringOtherApps: true)
+            }
         }
     }
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var statusItem: NSStatusItem?
+    let model = AppModel()
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // for later in dev manually add;
@@ -22,40 +45,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Config.requestAccessibilityPermission()
         Task {
             do {
-                try MeetServer.start()
-                try await MeetingStatus.start(hueService: HueService(config: Config.load()))
+                try await model.start()
             } catch {
                 print("Startup failed: \(error)")
             }
-        }
-        statusItem = {
-            let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-            item.button?.title = "🕐"
-            item.menu = {
-                let menu = NSMenu()
-                menu.addItem(withTitle: "In Meeting", action: nil, keyEquivalent: "").isEnabled = false
-                let configItem = menu.addItem(withTitle: "Loading Config...", action: nil, keyEquivalent: "")
-                configItem.isEnabled = false
-                refreshConfig(item: configItem)
-                menu.addItem(.separator())
-                menu.addItem(withTitle: "Toggle Debugger", action: #selector(AppDelegate.toggleDebugWindow), keyEquivalent: "")
-                menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-                return menu
-            }()
-            return item
-        }()
-    }
-    
-    @objc func toggleDebugWindow() {
-        DebugWindow.shared.toggle()
-    }
-    
-    private func refreshConfig(item: NSMenuItem) {
-        let config = Config.load()
-        if config.isComplete {
-            item.title = "Hue: \(config.bridgeIP)"
-        } else {
-            item.title = "Hue: not configured"
         }
     }
 }

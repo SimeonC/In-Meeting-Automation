@@ -4,11 +4,14 @@
   "version": "1.0",
   "description": "Detects Google Meet start/end and notifies the local service",
   "permissions": [],
-  "host_permissions": ["https://meet.google.com/*", "https://localhost:1234/*"],
+  "host_permissions": ["https://meet.google.com/*", "http://localhost:16338/*"],
   "content_scripts": [
     {
       "matches": ["https://meet.google.com/*"],
-      "js": ["index.js"]
+      "js": ["watcher.js"]
     }
-  ]
+  ],
+  "background": {
+      "service_worker": "background.js"
+  }
 }

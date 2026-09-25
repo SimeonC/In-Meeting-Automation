@@ -8,12 +8,21 @@
 import Foundation
 import ApplicationServices
 
-struct Config {
+@Observable
+final class Config {
     var bridgeIP: String
     var hueToken: String
     var offZoneID: String
     var sceneNotMeetingID: String
     var sceneMeetingID: String
+    
+    init(bridgeIP: String, hueToken: String, offZoneID: String, sceneNotMeetingID: String, sceneMeetingID: String) {
+        self.bridgeIP = bridgeIP
+        self.hueToken = hueToken
+        self.offZoneID = offZoneID
+        self.sceneNotMeetingID = sceneNotMeetingID
+        self.sceneMeetingID = sceneMeetingID
+    }
     
     static var isTrusted: Bool {
         AXIsProcessTrusted()

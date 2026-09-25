@@ -6,7 +6,7 @@ Convert the TypeScript `in-meeting-automation` (Hue light controller + Google Me
 
 **Decisions (already made):**
 - Config storage: **UserDefaults** (replaces `.env`)
-- Google Meet: **keep the browser extension + localhost HTTPS server** (port 1234)
+- Google Meet: **upgrade to real browser extension + localhost HTTP server** (port 16338)
 - Auto-start: **SMAppService** login item
 - Platform: macOS (menu-bar app, `LSUIElement`)
 - App bundle id: `com.simeonc.InMeeting`
@@ -53,14 +53,18 @@ Convert the TypeScript `in-meeting-automation` (Hue light controller + Google Me
 - [x] `detectZoomMeeting` — app name contains "zoom", title contains "zoom meeting"
 - [x] **No screen-recording permission needed** — verify by running without granting any permission
 
-### Stage D — Localhost HTTPS server (`NWListener`)
+### Stage D — Localhost HTTP server (`NWListener`)
 - [x] New file `MeetServer.swift`
-- [x] `NWListener` on `NWEndpoint.hostPort(host: "127.0.0.1", port: 1234)` with TLS
-- [x] Reuse existing `.certs/cert.pem` + `key.pem`; keep keychain trust step
+- [x] `NWListener` on `NWEndpoint.hostPort(host: "127.0.0.1", port: 18740)` with **plain TCP** (`NWParameters()`, no TLS)
 - [x] CORS headers (`Access-Control-Allow-Origin: *`, methods `POST, OPTIONS`)
-- [x] Routes: `POST /meeting-start`, `POST /meeting-end`, `POST /meeting-heartbeat` → 200
+- [x] Routes: `POST /meeting-start`, `POST /meeting-end`, `POST /meeting-heartbeat` → 200; `OPTIONS` → 204; else → 404
+- [x] **Verify with curl:** `curl -v -X POST http://127.0.0.1:18740/meeting-start` → 200
 - [x] Wire to the controller's `onGoogleMeetStart/End/Heartbeat`
-- [ ] **Browser extension unchanged** — confirm it still posts and lights react
+- [x] **Browser extension:** change `ENDPOINT` in `browser-extension/index.js` from `https://localhost:1234` to `http://localhost:16338`
+- [x] **Browser extension:** update `host_permissions` in `browser-extension/manifest.json` from `https://localhost:1234/*` to `http://localhost:16338/*`
+- [x] **Confirm** the extension (installed as MV3, not userscript) posts to the new URL and lights react
+- [x] **Remove** all cert-related code: `ensureCerts()`, openssl `Process` calls, `Security` import, `.certs/` dir references
+- [ ] **Remove** the old `bun run setup.ts` LaunchAgent / plist (Stage G cleanup)
 
 ### Stage E — State machine + polling loop
 - [x] Port `check()` logic: `inSlack || inZoom || inGoogle` → transition
@@ -71,7 +75,7 @@ Convert the TypeScript `in-meeting-automation` (Hue light controller + Google Me
 - [x] Initialize lights to "Not Meeting" on startup
 
 ### Stage F — Setup flow
-- [ ] Menu-bar "Set up Hue…" flow (replaces `setup.ts` interactive prompts)
+- [ ] Menu-bar "Settings" > "Configure Hue" flow (replaces `setup.ts` interactive prompts, not a wizard this time, auto called on first startup when NOT setup)
 - [ ] Enter bridge IP → register token (press bridge button) → pick Off zone, Not-Meeting scene, Meeting scene
 - [ ] Save to `UserDefaults`
 - [ ] Generate + trust SSL cert if missing (reuse `cert-utils` logic via `Process`/`security`)
@@ -97,7 +101,7 @@ Convert the TypeScript `in-meeting-automation` (Hue light controller + Google Me
 |---|---|
 | `openWindowsSync()` (get-windows) | `NSWorkspace.shared.runningApplications` / `.windows` |
 | `fetch(url)` | `URLSession.shared.data(from:)` (async/await) |
-| `https.createServer` :1234 | `NWListener` (Network.framework) + TLS |
+| `https.createServer` :16338 | `NWListener` (Network.framework) + TLS |
 | `setInterval` / `setTimeout` | `Timer.scheduledTimer` / `DispatchSourceTimer` / `Task` + `Task.sleep` |
 | `process.env.X` | `UserDefaults.standard.string(forKey:)` |
 | `watchFile(".env")` | not needed (UserDefaults is live) |
@@ -107,5 +111,5 @@ Convert the TypeScript `in-meeting-automation` (Hue light controller + Google Me
 ## Current TS behavior to preserve
 - Lights red during meetings, cool blue otherwise (via Hue scenes on a group).
 - "Off zone" turned off on shutdown.
-- Google Meet via extension → `https://localhost:1234` → start/end/heartbeat with 30s timeout.
+- Google Meet via extension → `http://localhost:16338` → start/end/heartbeat with 30s timeout.
 - Network monitor pauses/resumes the controller when the bridge drops.
