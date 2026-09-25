@@ -8,20 +8,22 @@
 import Foundation
 import ApplicationServices
 
+let d = UserDefaults.standard
+
 @Observable
 final class Config {
-    var bridgeIP: String
-    var hueToken: String
-    var offZoneID: String
-    var sceneNotMeetingID: String
-    var sceneMeetingID: String
+    var bridgeIP: String { didSet { d.set(bridgeIP, forKey: Key.bridgeIP) } }
+    var hueToken: String { didSet { d.set(hueToken, forKey: Key.hueToken) } }
+    var offGroupID: String { didSet { d.set(offGroupID, forKey: Key.offGroup) } }
+    var sceneNotMeetingID: String { didSet { d.set(sceneNotMeetingID, forKey: Key.sceneNotMeeting) } }
+    var sceneMeetingID: String { didSet { d.set(sceneMeetingID, forKey: Key.sceneMeeting) } }
     
-    init(bridgeIP: String, hueToken: String, offZoneID: String, sceneNotMeetingID: String, sceneMeetingID: String) {
-        self.bridgeIP = bridgeIP
-        self.hueToken = hueToken
-        self.offZoneID = offZoneID
-        self.sceneNotMeetingID = sceneNotMeetingID
-        self.sceneMeetingID = sceneMeetingID
+    init() {
+        self.bridgeIP = d.string(forKey: Key.bridgeIP) ?? ""
+        self.hueToken = d.string(forKey: Key.hueToken) ?? ""
+        self.offGroupID = d.string(forKey: Key.offGroup) ?? ""
+        self.sceneNotMeetingID = d.string(forKey: Key.sceneNotMeeting) ?? ""
+        self.sceneMeetingID = d.string(forKey: Key.sceneMeeting) ?? ""
     }
     
     static var isTrusted: Bool {
@@ -38,37 +40,23 @@ final class Config {
     private enum Key {
         static let bridgeIP = "hueBridgeIP"
         static let hueToken = "hueToken"
-        static let offZone = "hueOffZone"
+        static let offGroup = "hueoffGroup"
         static let sceneNotMeeting = "hueSceneNotMeeting"
         static let sceneMeeting = "hueSceneMeeting"
     }
     
-    static func load() -> Config {
-        let d = UserDefaults.standard
-        return Config(
-            bridgeIP: d.string(forKey: Key.bridgeIP) ?? "",
-            hueToken: d.string(forKey: Key.hueToken) ?? "",
-            offZoneID: d.string(forKey: Key.offZone) ?? "",
-            sceneNotMeetingID: d.string(forKey: Key.sceneNotMeeting) ?? "",
-            sceneMeetingID: d.string(forKey: Key.sceneMeeting) ?? ""
-        )
-    }
-    
-    func save() {
-        let d = UserDefaults.standard
-        d.set(bridgeIP, forKey: Key.bridgeIP)
-        d.set(hueToken, forKey: Key.hueToken)
-        d.set(offZoneID, forKey: Key.offZone)
-        d.set(sceneNotMeetingID, forKey: Key.sceneNotMeeting)
-        d.set(sceneMeetingID, forKey: Key.sceneMeeting)
-    }
-    
     var hueBaseURL: URL? {
         guard !bridgeIP.isEmpty, !hueToken.isEmpty else { return nil }
-        return URL(string: "https://\(bridgeIP)/api/\(hueToken)")
+        return URL(string: "http://\(bridgeIP)/api/\(hueToken)")
     }
     
     var isComplete: Bool {
-        !bridgeIP.isEmpty && !hueToken.isEmpty && !sceneMeetingID.isEmpty && !sceneNotMeetingID.isEmpty
+        hasBridgeIP && !hueToken.isEmpty && !sceneMeetingID.isEmpty && !sceneNotMeetingID.isEmpty
     }
+    
+    var hasBridgeIP: Bool {
+        !bridgeIP.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+    
+    var isConnected: Bool { hasBridgeIP && !hueToken.isEmpty }
 }

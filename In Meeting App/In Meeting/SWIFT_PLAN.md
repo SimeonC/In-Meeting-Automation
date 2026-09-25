@@ -75,10 +75,9 @@ Convert the TypeScript `in-meeting-automation` (Hue light controller + Google Me
 - [x] Initialize lights to "Not Meeting" on startup
 
 ### Stage F — Setup flow
-- [ ] Menu-bar "Settings" > "Configure Hue" flow (replaces `setup.ts` interactive prompts, not a wizard this time, auto called on first startup when NOT setup)
-- [ ] Enter bridge IP → register token (press bridge button) → pick Off zone, Not-Meeting scene, Meeting scene
-- [ ] Save to `UserDefaults`
-- [ ] Generate + trust SSL cert if missing (reuse `cert-utils` logic via `Process`/`security`)
+- [x] Menu-bar "Settings" > "Configure Hue" flow (replaces `setup.ts` interactive prompts, not a wizard this time, auto called on first startup when NOT setup)
+- [x] Enter bridge IP → register token (press bridge button) → pick Off zone, Not-Meeting scene, Meeting scene
+- [x] Save to `UserDefaults`
 
 ### Stage G — Auto-start (`SMAppService`)
 - [ ] `SMAppService.mainApp.register()` (macOS 13+)

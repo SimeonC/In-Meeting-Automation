@@ -11,11 +11,12 @@ import Foundation
 final class AppModel {
     var config: Config
     var status: MeetingStatus
+    var activeSettingsTab: SettingsTab = .general
     
     var isInMeeting: Bool { status.isMeeting }
     
     init() {
-        let config = Config.load()
+        let config = Config()
         self.config = config
         self.status = MeetingStatus(config: config)
     }
@@ -23,4 +24,8 @@ final class AppModel {
     func start() async throws {
         try await status.start()
     }
+}
+
+enum SettingsTab: Int {
+    case general, setup, debug
 }

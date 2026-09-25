@@ -21,12 +21,22 @@ struct SceneAction: Encodable {
 
 final class HueService {
     private let config: Config
+    private let session: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 10
+        config.timeoutIntervalForResource = 30
+        return URLSession(configuration: config)
+    }()
     
     init(config: Config) {
         self.config = config
     }
     
-    func registerUser(bridgeIP: String) async throws -> String {
+    func connect() async throws {
+        let bridgeIP = config.bridgeIP
+        if bridgeIP.isEmpty {
+            throw HueError.bridgeError("No Bridge IP set")
+        }
         struct RegisterBody: Encodable { let devicetype: String }
         struct RegisterResult: Decodable { let success: Success?; let error: HueError? }
         struct Success: Decodable { let username: String }
@@ -35,10 +45,15 @@ final class HueService {
         request.httpBody = try JSONEncoder().encode(RegisterBody(devicetype: "in-meeting-automation#setup"))
         
         for _ in 1...30 {
-            let (data, _) = try await URLSession.shared.data(for: request)
-            let results = try JSONDecoder().decode([RegisterResult].self, from: data)
-            if let token = results.first(where: { $0.success != nil })?.success?.username {
-                return token
+            do {
+                let (data, _) = try await session.data(for: request)
+                let results = try JSONDecoder().decode([RegisterResult].self, from: data)
+                print(results)
+                if let token = results.first(where: { $0.success != nil })?.success?.username {
+                    config.hueToken = token
+                }
+            } catch {
+                throw HueError.bridgeError("Cannot reach \(bridgeIP): \(error.localizedDescription)")
             }
             try await Task.sleep(for: .seconds(1))
         }
@@ -65,8 +80,8 @@ final class HueService {
     }
     
     func turnOffLights() async throws {
-        guard !config.offZoneID.isEmpty else { return }
-        try await groupAction(config.offZoneID, action: SceneAction(scene: nil, on: false))
+        guard !config.offGroupID.isEmpty else { return }
+        try await groupAction(config.offGroupID, action: SceneAction(scene: nil, on: false))
     }
     
     private func getScene(_ sceneID: String) async throws -> SceneInfo {
@@ -78,9 +93,10 @@ final class HueService {
     }
     
     private func get<T: Decodable>(_ type: T.Type, path: String) async throws -> T {
-        let (data, response) = try await URLSession.shared.data(from: url(path))
-        guard (200..<300).contains(response.statusCode ?? -1) else {
-            throw HueError.bridgeError("fetch \"\(path)\" \(String(response.statusCode ?? -1))")
+        let (data, response) = try await session.data(from: url(path))
+        let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+        guard (200..<300).contains(code) else {
+            throw HueError.bridgeError("fetch \"\(path)\" \(String(code))")
         }
         return try JSONDecoder().decode(type.self, from: data)
     }
@@ -94,7 +110,7 @@ final class HueService {
         input.setValue("application/json", forHTTPHeaderField: "Content-Type")
         input.httpBody = try JSONEncoder().encode(action)
         
-        let (putData, putResponse) = try await URLSession.shared.data(for: input)
+        let (putData, _) = try await session.data(for: input)
         
         // hue can return [ {}, {} ] on success
         let results = try JSONDecoder().decode([HueResponse].self, from: putData)
@@ -109,12 +125,6 @@ final class HueService {
             throw HueError.notConfigured
         }
         return base.appending(path: path)
-    }
-}
-
-private extension URLResponse {
-    var statusCode: Int? {
-        (self as? HTTPURLResponse)?.statusCode
     }
 }
 

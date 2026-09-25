@@ -5,9 +5,10 @@ import AppKit
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
     var body: some Scene {
+        let model = appDelegate.model
         MenuBarExtra (
             "In Meeting",
-            systemImage: appDelegate.model.isInMeeting ?  "person.crop.square.badge.video.fill" : "bolt.fill"
+            systemImage: model.isInMeeting ?  "person.crop.square.badge.video.fill" : "bolt.fill"
         ) {
             Group {
                 Text("In Meeting")
@@ -21,14 +22,23 @@ import AppKit
             }
         }
         Settings {
-            TabView {
-                SettingsView(model: appDelegate.model)
-                    .tabItem { Label("Settings", systemImage: "gearshape") }
-                DebugView(model: appDelegate.model)
+            @Bindable var boundModel = appDelegate.model
+            TabView(selection: $boundModel.activeSettingsTab) {
+                SettingsView(model: model)
+                    .tabItem { Label("Settings", systemImage: "gearshape.2.fill") }
+                    .tag(SettingsTab.general)
+                SetupView(config: model.config, hueService: model.status.hueService)
+                    .tabItem { Label("Setup", systemImage: "wand.and.sparkles") }
+                    .tag(SettingsTab.setup)
+                DebugView(model: model)
                     .tabItem { Label("Debugging", systemImage: "ladybug.fill") }
+                    .tag(SettingsTab.debug)
             }
             .tabViewStyle(.sidebarAdaptable)
             .onAppear {
+                if !model.config.isComplete {
+                    model.activeSettingsTab = .setup
+                }
                 NSApp.activate(ignoringOtherApps: true)
             }
         }
@@ -36,6 +46,8 @@ import AppKit
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    @Environment(\.openSettings) private var openSettings
+    
     let model = AppModel()
     
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -46,6 +58,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task {
             do {
                 try await model.start()
+                if !model.config.isComplete {
+                    openSettings()
+                }
             } catch {
                 print("Startup failed: \(error)")
             }
